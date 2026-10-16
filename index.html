@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>통합 가계부</title>
+<meta name="description" content="구글 시트를 DB로 쓰는 개인 가계부">
+<meta name="theme-color" content="#2F5D53">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="가계부">
+<meta name="format-detection" content="telephone=no">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;600;700;800&display=swap">
+<link rel="stylesheet" href="css/app.css">
+</head>
+<body>
+<div id="lock" class="lock"><div class="avatar" style="font-size:40px;line-height:78px">📒</div><p>불러오는 중…</p></div>
+
+<div id="app" class="app" hidden>
+  <header id="top" class="top"></header>
+  <main id="view" class="view" tabindex="-1"></main>
+  <nav id="tabs" class="tabs" aria-label="주 메뉴"></nav>
+  <button id="fab" class="fab" type="button" aria-label="내역 입력" hidden>＋</button>
+</div>
+
+<div id="layer"></div>
+<div id="toast" class="toast" role="status" aria-live="polite"></div>
+
+<script defer src="js/util.js"></script>
+<script defer src="js/calc.js"></script>
+<script defer src="js/smart.js"></script>
+<script defer src="js/store.js"></script>
+<script defer src="js/sync.js"></script>
+<script defer src="js/charts.js"></script>
+<script defer src="js/xlsx-io.js"></script>
+<script defer src="js/ui-core.js"></script>
+<script defer src="js/ui-home.js"></script>
+<script defer src="js/ui-entries.js"></script>
+<script defer src="js/ui-add.js"></script>
+<script defer src="js/ui-analysis.js"></script>
+<script defer src="js/ui-settings.js"></script>
+<script defer src="js/app.js"></script>
+<noscript><p style="padding:24px">이 앱은 자바스크립트가 필요해요.</p></noscript>
+</body>
+</html>
