@@ -1,7 +1,7 @@
 /* 서비스 워커 — 앱 껍데기를 기기에 저장해 오프라인에서도 열리게 합니다.
  * ★ 파일을 고쳐 GitHub 에 올릴 때마다 아래 VERSION 숫자를 올리세요. (모든 기기가 새 버전으로 갱신됩니다)
  */
-const VERSION = '2.0.0-1';
+const VERSION = '2.0.0-2';
 const CACHE = 'gagyebu-' + VERSION;
 const SHELL = [
   './', 'index.html', 'manifest.json', 'css/app.css',

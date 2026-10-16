@@ -11,12 +11,33 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="가계부">
 <meta name="format-detection" content="telephone=no">
+<script>
+/* 시작 감시: 앱이 6초 안에 시작하지 못하면 '왜'를 화면에 알려 줍니다 */
+(function () {
+  var failed = [], errs = [];
+  window.addEventListener('error', function (e) {
+    var t = e.target;
+    if (t && t !== window && (t.src || t.href)) failed.push((t.src || t.href).replace(location.origin, ''));
+    else if (e.message) errs.push(e.message);
+  }, true);
+  window.addEventListener('unhandledrejection', function (e) { errs.push(String(e.reason && e.reason.message || e.reason)); });
+  window.__abDiag = function () {
+    var el = document.getElementById('lock'); if (!el || (window.AB && window.AB.booted)) return;
+    var miss = failed.filter(function (u) { return !/fonts\./.test(u); }), h = '<h2>앱을 시작하지 못했어요</h2><p style="text-align:left;max-width:320px;line-height:1.6">';
+    if (miss.length) h += '불러오지 못한 파일 ' + miss.length + '개:<br><b>' + miss.slice(0, 6).join('<br>') + '</b><br><br>GitHub 저장소에 <b>js, css, icons, assets, vendor 폴더</b>와 그 안의 파일이 모두 올라갔는지 확인해 주세요. (저장소 맨 위에 폴더들이 보여야 해요)';
+    else if (errs.length) h += '오류: <b>' + errs[0].replace(/[<>&]/g, '') + '</b><br><br>이 문구를 알려 주세요.';
+    else h += '파일은 모두 받았는데 시작이 늦어지고 있어요. 네트워크가 느린지 확인하고 다시 시도해 보세요.';
+    el.innerHTML = h + '</p><button type="button" style="margin-top:14px;padding:11px 22px;border-radius:12px;border:0;font-weight:700" onclick="location.reload()">다시 시도</button>';
+  };
+  setTimeout(function () { window.__abDiag(); }, 6000);
+})();
+</script>
 <link rel="manifest" href="manifest.json">
 <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
 <link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;600;700;800&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;600;700;800&display=swap" media="print" onload="this.media='all'"> <!-- 글꼴은 늦게 와도 앱 시작을 막지 않음 -->
 <link rel="stylesheet" href="css/app.css">
 </head>
 <body>
