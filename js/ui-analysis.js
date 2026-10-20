@@ -56,7 +56,7 @@
 
   /* ───── 통계 ───── */
   function statsView(d) {
-    var type = S.statsMode, items = C.categoryTotals(d.rows, d.range.start, d.asOf, type), total = U.sum(items, function (i) { return i.amount; });
+    var type = S.statsMode, items = Ch.pieItems(C.categoryTotals(d.rows, d.range.start, d.asOf, type)), total = U.sum(items, function (i) { return i.amount; });
     var months = []; for (var i = 5; i >= 0; i--) months.push(U.shiftMonth(S.month, -i));
     var months12 = []; for (var j = 11; j >= 0; j--) months12.push(U.shiftMonth(S.month, -j));
     var mom = C.momCompare(d.rows, S.month, d.today);
@@ -72,7 +72,7 @@
         '<div class="hint" style="color:var(--ink)">' + pm + '월 1~' + mom.day + '일 지출 <b class="num">' + won(mom.prev) + '</b> → 이번 달 같은 기간 <b class="num">' + won(mom.cur) + '</b>. ' + (mom.diff > 0 ? '<b>' + won(mom.diff) + '</b> 더 쓰고 있어요.' : mom.diff < 0 ? '<b>' + won(-mom.diff) + '</b> 아끼고 있어요!' : '똑같아요.') + '</div></div>';
     }
     h += '<div class="card"><h3>' + (type === 'expense' ? '지출' : '수입') + ' 구성비</h3>' + (total ? '<canvas class="chart" id="ch-donut"></canvas><div style="margin-top:8px">' +
-      items.map(function (it, i) { return '<div class="legend-row"><i style="background:' + Ch.PALETTE[i % Ch.PALETTE.length] + '"></i><span class="grow">' + esc(it.name) + '</span><b class="num">' + U.num(it.amount) + '</b><span class="muted tiny num" style="min-width:3.2em;text-align:right">' + (it.amount / total * 100).toFixed(1) + '%</span></div>'; }).join('') + '</div>'
+      items.map(function (it, i) { return '<div class="legend-row"><i style="background:' + Ch.colorOf(it, i) + '"></i><span class="grow">' + esc(it.name) + '</span><b class="num">' + U.num(it.amount) + '</b><span class="muted tiny num" style="min-width:3.2em;text-align:right">' + (it.amount / total * 100).toFixed(1) + '%</span></div>'; }).join('') + '</div>'
       : '<div class="empty" style="padding:20px"><b>이 기간 ' + (type === 'expense' ? '지출' : '수입') + ' 내역이 없어요</b></div>') + '</div>';
     h += '<div class="card"><h3>최근 6개월 ' + (type === 'expense' ? '지출' : '수입') + '</h3><canvas class="chart" id="ch-bars"></canvas></div>' +
       '<div class="card"><h3>월말 전체 계정 잔액 추이 <span class="faint tiny">12개월</span></h3><canvas class="chart" id="ch-line"></canvas></div>';

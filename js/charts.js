@@ -5,7 +5,19 @@
   var U = AB.util;
   var Ch = AB.charts = {};
 
-  Ch.PALETTE = ['#2F5D53', '#BD4332', '#B8862B', '#2F6FA3', '#7D5BA6', '#5C8374', '#D17A5B', '#8A8070', '#4C9AA3', '#A3607A'];
+  Ch.PALETTE = ['#2F5D53', '#BD4332', '#B8862B', '#2F6FA3', '#7D5BA6', '#6B9A5A', '#D17A5B', '#4C9AA3', '#A3607A', '#C9A227', '#5B6EAE', '#8A8070'];
+  Ch.OTHER = '#B7B2A6';   // "기타"로 묶은 조각
+  Ch.colorOf = function (it, i) { return it.other ? Ch.OTHER : Ch.PALETTE[i % Ch.PALETTE.length]; };
+
+  /** 구성비용 정리: 0원 이하는 빼고, 12개를 넘으면 나머지를 "기타"로 묶음 */
+  Ch.pieItems = function (items, max) {
+    max = max || Ch.PALETTE.length;
+    var pos = items.filter(function (i) { return i.amount > 0; });
+    if (pos.length <= max) return pos;
+    var head = pos.slice(0, max - 1), rest = pos.slice(max - 1);
+    head.push({ name: '기타 ' + rest.length + '개 항목', amount: U.sum(rest, function (i) { return i.amount; }), other: true });
+    return head;
+  };
 
   function cv(name, fb) { var v = getComputedStyle(document.documentElement).getPropertyValue(name).trim(); return v || fb; }
   Ch.cv = cv;
@@ -26,14 +38,16 @@
   Ch.donut = function (canvas, items, opt) {
     opt = opt || {};
     var p = prep(canvas, opt.h || 190); if (!p) return;
+    items = items.filter(function (i) { return i.amount > 0; });          // 0원·마이너스(환불) 조각은 그리지 않음
     var ctx = p.ctx, total = U.sum(items, function (i) { return i.amount; });
     var cx = p.w / 2, cy = p.h / 2, R = Math.min(p.w, p.h) / 2 - 6, r = R * 0.62;
     if (!total) return;
-    var a = -Math.PI / 2, gap = items.length > 1 ? 0.03 : 0;
+    var a = -Math.PI / 2, many = items.length > 1;
     items.forEach(function (it, i) {
       var sw = it.amount / total * Math.PI * 2;
+      var gap = many ? Math.min(0.03, sw * 0.2) : 0;                     // 아주 작은 조각은 틈을 줄여서, 시작>끝(한 바퀴 그려짐)이 되지 않게
       ctx.beginPath(); ctx.arc(cx, cy, R, a + gap, a + sw - gap); ctx.arc(cx, cy, r, a + sw - gap, a + gap, true); ctx.closePath();
-      ctx.fillStyle = Ch.PALETTE[i % Ch.PALETTE.length]; ctx.fill(); a += sw;
+      ctx.fillStyle = Ch.colorOf(it, i); ctx.fill(); a += sw;
     });
     ctx.textAlign = 'center'; ctx.fillStyle = cv('--ink2', '#666'); ctx.font = '600 12px ' + FONT;
     ctx.fillText(opt.label || '', cx, cy - 6);
