@@ -2,7 +2,7 @@
 (function (root) {
   'use strict';
   var AB = root.AB, U = AB.util, St = AB.store, Sy = AB.sync, UI = AB.ui;
-  AB.VERSION = '3.0.4';
+  AB.VERSION = '3.0.5';
   var $ = function (s) { return document.querySelector(s); };
 
   function ls(k, v) {

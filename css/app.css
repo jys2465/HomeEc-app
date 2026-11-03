@@ -293,3 +293,7 @@ html, body { height: 100%; overflow: hidden; overscroll-behavior: none; }
 .cal .bar { height: 12px; display: block; color: #fff; font-size: .56rem; font-weight: 700; line-height: 12px; text-align: left; padding-left: 3px; white-space: nowrap; overflow: hidden; font-style: normal; }
 .cal .bar.s { border-radius: 6px 0 0 6px; margin-left: 2px; } .cal .bar.e { border-radius: 0 6px 6px 0; margin-right: 2px; } .cal .bar.s.e { border-radius: 6px; }
 .cal button { justify-content: flex-start; }
+
+/* 3.0.5 — 홈 화면 앱 높이: 바탕까지 탭 색으로 (만약 남는 틈이 있어도 비어 보이지 않게) */
+html { background: var(--card); }
+body { background: var(--bg); min-height: 100%; }

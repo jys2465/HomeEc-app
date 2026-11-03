@@ -175,7 +175,17 @@
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', watch); else watch();
   document.documentElement.classList.toggle('priv', UI.hidden());
   /* 화면 높이 맞추기: 아이폰 홈 화면 앱은 CSS 높이 계산이 실제 화면과 어긋날 때가 있어 직접 잼 */
-  function fitHeight() { var h = root.visualViewport && !(document.activeElement && document.activeElement.matches && document.activeElement.matches('input,textarea,select')) ? Math.max(root.innerHeight, root.visualViewport.height) : root.innerHeight; document.documentElement.style.setProperty('--app-h', h + 'px'); }
+  function fitHeight() {
+    var h = root.innerHeight;
+    // 아이폰 홈 화면 앱(standalone): innerHeight가 상태 막대 높이만큼 작게 나오는 경우가 있어 실제 화면 높이를 씀
+    if (navigator.standalone === true || (root.matchMedia && root.matchMedia('(display-mode: standalone)').matches)) {
+      var portrait = !root.matchMedia || root.matchMedia('(orientation: portrait)').matches;
+      var full = portrait ? Math.max(screen.height, screen.width) : Math.min(screen.height, screen.width);
+      var typing = document.activeElement && document.activeElement.matches && document.activeElement.matches('input,textarea,select');
+      if (!typing && full > h) h = full;
+    }
+    document.documentElement.style.setProperty('--app-h', h + 'px');
+  }
   fitHeight(); root.addEventListener('resize', fitHeight); root.addEventListener('orientationchange', function () { setTimeout(fitHeight, 300); });
   document.addEventListener('visibilitychange', function () { if (!document.hidden) setTimeout(fitHeight, 50); });
   document.addEventListener('focusout', function () { setTimeout(fitHeight, 120); });
