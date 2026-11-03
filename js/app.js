@@ -2,7 +2,7 @@
 (function (root) {
   'use strict';
   var AB = root.AB, U = AB.util, St = AB.store, Sy = AB.sync, UI = AB.ui;
-  AB.VERSION = '3.0.2';
+  AB.VERSION = '3.0.3';
   var $ = function (s) { return document.querySelector(s); };
 
   function ls(k, v) {
@@ -116,7 +116,15 @@
     var reloaded = false, hadController = !!navigator.serviceWorker.controller; // 처음 설치될 때는 새로고침하지 않음
     navigator.serviceWorker.addEventListener('controllerchange', function () { if (reloaded || !hadController) return; reloaded = true; location.reload(); });
     navigator.serviceWorker.register('sw.js').then(function (reg) {
-      function offer(w) { UI.toast('새 버전이 준비됐어요', { ms: 12000, action: { label: '지금 적용', fn: function () { w.postMessage({ type: 'SKIP_WAITING' }); } } }); }
+      /* 새 버전: 입력 중이 아니면 바로 적용, 입력 중이면 앱을 잠깐 나갔다 올 때 적용 (토스트를 놓쳐도 됨) */
+      function apply(w) { w.postMessage({ type: 'SKIP_WAITING' }); }
+      function offer(w) {
+        var busy = function () { return !!document.querySelector('#layer .sheet'); };
+        if (!busy()) { UI.toast('새 버전으로 바꾸는 중…', { ms: 2000 }); setTimeout(function () { apply(w); }, 600); return; }
+        UI.toast('새 버전이 준비됐어요', { ms: 12000, action: { label: '지금 적용', fn: function () { apply(w); } } });
+        document.addEventListener('visibilitychange', function f() { if (document.visibilityState === 'hidden') { document.removeEventListener('visibilitychange', f); apply(w); } });
+      }
+      document.addEventListener('visibilitychange', function () { if (document.visibilityState === 'visible') reg.update().catch(function () {}); });
       if (reg.waiting && navigator.serviceWorker.controller) offer(reg.waiting);
       reg.addEventListener('updatefound', function () {
         var w = reg.installing; if (!w) return;

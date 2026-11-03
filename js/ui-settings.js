@@ -78,7 +78,7 @@
     h = top + '<div class="grp">' + grpRow('lock', 'bell', 'var(--expense)', '잠금', 'PIN · 자동 잠금') + grpRow('mgr', 'list', 'var(--brand)', '계정 · 항목', d.eff.accounts.length + ' · ' + d.eff.expenses.length) +
       grpRow('adv', 'sync', 'var(--ink3)', '고급', (conf.length ? '충돌 ' + conf.length + ' · ' : '') + '동기화 · 엑셀') + '</div>' +
       (open === 'lock' ? sec : open === 'mgr' ? mgr : open === 'adv' ? conn + data : '');
-    h += '<p class="hint center faint one" style="padding:6px 0 0">내 하루장 v' + (AB.VERSION || '3') + ' · 시트에 보관 · 앱에서 계산</p>';
+    h += '<p class="hint center faint one" style="padding:6px 0 0">내 하루장 v' + (AB.VERSION || '3') + ' · <button class="link" data-act="sw-check">업데이트 확인</button></p>';
     return h;
   }
 
@@ -97,6 +97,12 @@
   }
 
   UI.views.settings = { render: render };
+  UI.actions['sw-check'] = async function () {
+    if (!navigator.serviceWorker) return UI.toast('이 브라우저는 자동 업데이트를 지원하지 않아요');
+    UI.toast('새 버전을 찾는 중…');
+    try { var reg = await navigator.serviceWorker.getRegistration(); if (reg) await reg.update(); setTimeout(function () { if (!reg || (!reg.waiting && !reg.installing)) UI.toast('최신 버전이에요 · v' + AB.VERSION); }, 2500); }
+    catch (e) { UI.toast('지금은 확인할 수 없어요 (오프라인?)'); }
+  };
   UI.actions['set-open'] = function (el) { S.setOpen = S.setOpen === el.dataset.k ? '' : el.dataset.k; UI.render(); };
   UI.applyFont = function (k) { document.documentElement.style.fontSize = (16 * (+k || 1)) + 'px'; };
   UI.actions['font-k'] = function (el) { ls('ab.fontK', el.dataset.v); UI.applyFont(el.dataset.v); UI.render(); };
