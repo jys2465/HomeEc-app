@@ -276,8 +276,10 @@ button:active, .li[data-act]:active, .arow:active { transform: scale(.96); }
 .btn.soft .ic2, .btn .ic2 { width: 16px; height: 16px; }
 .t1 { white-space: nowrap; overflow: hidden; }
 /* v3.0.1 — 화면 고정: 탭·＋가 스크롤에 움직이거나 가려지지 않게 */
-html, body { overflow: hidden; overscroll-behavior: none; position: fixed; inset: 0; width: 100%; }
-.app { position: fixed; top: 0; bottom: 0; left: 0; right: 0; height: auto; margin: 0 auto; }
+html, body { height: 100%; overflow: hidden; overscroll-behavior: none; }
+/* 앱 높이는 실제 화면 높이(JS가 --app-h로 넣음)로. 아이폰 홈 화면 앱에서 아래가 비는 현상 방지 */
+.app { position: fixed; top: 0; left: 0; right: 0; height: var(--app-h, 100%); margin: 0 auto; }
+.tabs { padding-bottom: max(var(--safe-b), 6px); }
 .top { position: relative; z-index: 20; }
 .view { overscroll-behavior: contain; min-height: 0; }
 .tabs { position: relative; z-index: 30; overflow: visible; touch-action: none; }

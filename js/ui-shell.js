@@ -174,4 +174,9 @@
   }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', watch); else watch();
   document.documentElement.classList.toggle('priv', UI.hidden());
+  /* 화면 높이 맞추기: 아이폰 홈 화면 앱은 CSS 높이 계산이 실제 화면과 어긋날 때가 있어 직접 잼 */
+  function fitHeight() { var h = root.visualViewport && !(document.activeElement && document.activeElement.matches && document.activeElement.matches('input,textarea,select')) ? Math.max(root.innerHeight, root.visualViewport.height) : root.innerHeight; document.documentElement.style.setProperty('--app-h', h + 'px'); }
+  fitHeight(); root.addEventListener('resize', fitHeight); root.addEventListener('orientationchange', function () { setTimeout(fitHeight, 300); });
+  document.addEventListener('visibilitychange', function () { if (!document.hidden) setTimeout(fitHeight, 50); });
+  document.addEventListener('focusout', function () { setTimeout(fitHeight, 120); });
 })(typeof window !== 'undefined' ? window : globalThis);
