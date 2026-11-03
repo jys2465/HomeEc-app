@@ -92,7 +92,9 @@
     mem.meta[k] = v;
   };
 
-  function findOp(id, kind) { for (var i = mem.ops.length - 1; i >= 0; i--) if (mem.ops[i].id === id && mem.ops[i].op === kind) return mem.ops[i]; return null; }
+  var inflight = {}; // 지금 서버로 보내는 중인 op seq — 이 op은 덮어쓰지 않고 새 op을 쌓음(동기화 중 수정 유실 방지)
+  St.markInflight = function (seqs) { inflight = {}; (seqs || []).forEach(function (s) { inflight[s] = true; }); };
+  function findOp(id, kind) { for (var i = mem.ops.length - 1; i >= 0; i--) if (mem.ops[i].id === id && mem.ops[i].op === kind && !inflight[mem.ops[i].seq]) return mem.ops[i]; return null; }
 
   /** 내역 저장(추가/수정). 행 + 변경 큐를 한 트랜잭션으로 기록. */
   St.save = async function (input) { return St.saveMany([input]).then(function (r) { return r[0]; }); };
@@ -161,6 +163,7 @@
       });
       conflicts.forEach(function (c) {
         if (c.theirs) rs.put(fromServer(Object.assign({}, c.theirs, { id: c.id, rev: c.theirsRev, ts: Date.now() })));
+        else rs.delete(c.id); // 서버에서 이미 삭제된 행이면 로컬에서도 정리
         t.objectStore('conflicts').add({ id: c.id, mine: c.mine, theirs: c.theirs, at: Date.now() });
       });
       (sentSeqs || []).forEach(function (s) { t.objectStore('ops').delete(s); });
@@ -202,7 +205,7 @@
     await tx(['meta'], 'readwrite', function (t) { var m = t.objectStore('meta'); m.put({ key: 'cfg', value: cfg }); m.put({ key: 'cfgDirty', value: false }); });
     mem.meta.cfg = cfg; mem.meta.cfgDirty = false; emit();
   };
-  St.cfgSaved = async function () { await St.setMeta('cfgDirty', false); };
+  St.cfgSaved = async function (sentTs) { if (sentTs != null && St.cfg().ts !== sentTs) return; await St.setMeta('cfgDirty', false); }; // 보내는 사이 또 바뀌었으면 dirty 유지
 
   /** 이 기기의 로컬 데이터를 모두 지움 (PIN 분실 시 등). 서버(시트) 데이터는 그대로 */
   St.wipe = function () {

@@ -167,13 +167,14 @@
   };
 
   /** 자금 부족 예보 + 이체 추천 (여유 있는 통장 → 모자란 계정) */
-  C.fundingPlan = function (acct, eff) {
+  C.fundingPlan = function (acct, eff, opts) {
+    var cardShort = !!(opts && opts.cardShort); // 꺼져 있으면 카드 마이너스는 '결제 예정'으로만 보고 부족에서 뺌
     var kinds = {};
     eff.accounts.forEach(function (a) { kinds[a.name] = a; });
     var deficits = [], sources = [];
     acct.list.forEach(function (a) {
       var k = kinds[a.name] || { kind: 'bank', fundable: true };
-      if (a.short < 0) deficits.push({ name: a.name, kind: k.kind, need: Math.round(-a.short) });
+      if (a.short < 0 && (cardShort || k.kind !== 'card')) deficits.push({ name: a.name, kind: k.kind, need: Math.round(-a.short) });
       else if (k.fundable && k.kind !== 'card') {
         var spare = Math.round(a.balance - a.need);
         if (spare > 0) sources.push({ name: a.name, spare: spare });

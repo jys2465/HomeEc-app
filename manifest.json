@@ -1,7 +1,7 @@
 {
-  "name": "통합 가계부",
-  "short_name": "가계부",
-  "description": "구글 시트를 DB로 쓰는 개인 가계부",
+  "name": "내 하루장",
+  "short_name": "하루장",
+  "description": "돈 · 일기 · 일정을 한 권에 — 구글 시트를 DB로 쓰는 내 하루장",
   "lang": "ko",
   "start_url": "./",
   "scope": "./",

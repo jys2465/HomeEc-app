@@ -83,9 +83,16 @@
     var dstOpts = [1, 2, 3].map(function (n) { var m = U.shiftMonth(src, n), p = U.parse(m + '-01'); return '<option value="' + m + '"' + (m === fc.dst ? ' selected' : '') + '>' + p.y + '년 ' + p.m + '월로</option>'; }).join('');
     var p = U.parse(src + '-01');
     var h = '<div class="sh-head"><h2>고정비 복사</h2><button class="icon-btn" data-act="close" aria-label="닫기">' + UI.icon('x') + '</button></div>' +
-      '<p class="hint" style="margin-bottom:10px">' + p.y + '년 ' + p.m + '월의 <b>고정</b> 내역을 복사합니다. 이미 있는 내역은 건너뛰고, 메모의 <b>★ N회</b>는 자동으로 1 올라가요.</p>' +
+      '<p class="hint one" style="margin-bottom:10px">' + p.m + '월 <b>고정</b> 복사 · 회차 +1 · 주말·휴일 예산은 새 달 쉬는 날로</p>' +
       '<select class="select" data-ch="fc-dst" style="margin-bottom:10px">' + dstOpts + '</select>';
     if (!items.length) return h + '<div class="empty"><div class="em">📋</div><b>복사할 고정 내역이 없어요</b>내역을 입력할 때 반복을 "고정"으로 설정하면 여기서 복사할 수 있어요.</div>';
+    var og = {}; items.forEach(function (it) { if (it.off) { var g = og[it.off.group] = og[it.off.group] || { name: it.src.category || it.src.usage, per: it.src.budget, from: it.off.from, to: it.off.to, days: [] }; g.days.push(it); } });
+    Object.keys(og).forEach(function (k) {
+      var g = og[k], df = g.to - g.from, q = U.parse(fc.dst + '-01');
+      h += '<div class="card" style="padding:10px 12px;margin-bottom:8px"><div class="row between"><b class="t1">' + esc(g.name) + ' · 주말·휴일 예산</b><span class="pill ' + (df ? 'pl-w' : '') + '">' + (df === 0 ? '같음' : (df > 0 ? '+' : '−') + Math.abs(df) + '건') + '</span></div>' +
+        '<div class="t2">' + p.m + '월 ' + g.from + '건 → ' + q.m + '월 ' + g.to + '건 · 하루 ' + U.num(g.per) + '원</div>' +
+        '<div style="display:flex;flex-wrap:wrap;gap:4px;margin-top:6px">' + g.days.map(function (it) { var dd = (it.row || it.src).date, nm = it.off.name; return '<span class="pill ' + (nm ? 'pl-e' : '') + '" style="' + (nm ? '' : 'background:var(--track);color:var(--ink2)') + '">' + (+dd.slice(8)) + (nm ? ' ' + esc(nm) : it.off.w === 6 ? ' 토' : ' 일') + '</span>'; }).join('') + '</div></div>';
+    });
     h += '<div class="row between small" style="margin-bottom:6px"><b>복사할 내역 ' + make + '건</b><span class="muted">건너뜀 ' + (items.length - make) + '건</span></div><div style="max-height:46vh;overflow:auto;margin-bottom:12px">';
     items.forEach(function (it, i) {
       var r = it.row || it.src, amt = r.type === 'budget' ? r.budget : r.amount;

@@ -14,7 +14,7 @@
  * ==========================================================================
  */
 
-const VERSION = 2;
+const VERSION = 3;
 const SHEET = { DATA: 'data', CHANGES: 'changes', IDS: '_ids', CONFIG: 'config', SUM: 'sumary' };
 const NCOL = 11; // data 시트의 A~K (사용일자 … 메모2) — 이 11열의 위치/의미는 절대 바꾸지 않습니다.
 const HEADERS = ['사용일자', '유형', '반복성', '계정항목', '사용내역', '예산금액', '확정금액', '출금계정', '입금계정', '메모1', '메모2'];
@@ -67,6 +67,7 @@ function doPost(e) {
       case 'ping': out = ping_(); break;
       case 'sync': out = sync_(p); break;
       case 'sum': out = { ok: true, sum: sumarySnapshot_() }; break;
+      case 'side': out = side_(p); break;
       default: out = { ok: false, err: 'unknown_action' };
     }
   } catch (err) {
@@ -785,4 +786,52 @@ function sumarySnapshot_() {
     start: parseYmd_(d[0]), end: parseYmd_(d[1]), asOf: parseYmd_(d[2]),
     accounts: accounts, budget: budget, deficit: num_(ws.getRange('T3').getValue()), readAt: Date.now()
   };
+}
+
+
+/* ───────────────────── 내 하루장 v3 · 노트 / 일정 / 저금통 ─────────────────────
+ *  data 시트의 동기화(sync)와 완전히 따로 돕니다. 표가 작아서 '마지막에 고친 것이 이김(updated 시각)' 방식.
+ *  요청: { a:'side', since:<ms>, puts:[{t, row}], dels:[{t, id, ts}] }
+ *  응답: { ok, now, rows:{ notes:[...], events:[...], goals:[...] } }  ← since 이후 바뀐 행(지운 행은 deleted:1)
+ */
+const SIDE = {
+  notes:  { head: ['날짜', '종류', '제목', '내용', '기분', '태그', '연결내역', '사진', '비밀'], keys: ['date', 'kind', 'title', 'body', 'mood', 'tags', 'link', 'photo', 'secret'] },
+  events: { head: ['시작', '끝', '하루종일', '제목', '장소', '반복', '사람', '예상비용', '연결내역'], keys: ['start', 'end', 'allday', 'title', 'place', 'repeat', 'who', 'cost', 'link'] },
+  goals:  { head: ['이름', '목표금액', '목표일', '태그', '모은금액', '메모'], keys: ['name', 'target', 'due', 'tag', 'saved', 'memo'] }
+};
+const SIDE_META = ['id', 'updated', 'deleted', 'synced']; // updated = 고친 시각(누가 이기는지), synced = 서버에 들어온 시각(since 기준)
+
+function side_(p) {
+  const lock = LockService.getScriptLock();
+  if (!lock.tryLock(25000)) return { ok: false, err: 'busy' };
+  try {
+    const ss = ss_(), now = Date.now(), since = Number(p.since) || 0, out = {};
+    const puts = (p.puts || []).slice(0, 500), dels = (p.dels || []).slice(0, 200);
+    Object.keys(SIDE).forEach(function (t) {
+      const def = SIDE[t], head = def.head.concat(SIDE_META), sh = getOrCreate_(ss, t, head, false);
+      if (sh.getLastRow() < 1) sh.getRange(1, 1, 1, head.length).setValues([head]);
+      const n = sh.getLastRow() - 1, w = head.length;
+      const vals = n > 0 ? sh.getRange(2, 1, n, w).getValues() : [];
+      const byId = {};
+      vals.forEach(function (v, i) { const id = str_(v[w - 4]); if (id) byId[id] = i; });
+      let changed = false;
+      puts.filter(function (x) { return x && x.t === t && x.row && x.row.id; }).forEach(function (x) {
+        const r = x.row, ts = Math.min(Number(r.updated) || now, now + 60000), i = byId[r.id];
+        if (i !== undefined && Number(vals[i][w - 3]) > ts) return; // 시트 쪽이 더 늦게 고쳐졌으면 시트 값 유지
+        const line = def.keys.map(function (k) { return cut_(r[k], k === 'body' ? 5000 : 300); }).concat([str_(r.id), ts, '', now]);
+        if (i === undefined) { byId[r.id] = vals.length; vals.push(line); } else vals[i] = line;
+        changed = true;
+      });
+      dels.filter(function (x) { return x && x.t === t && x.id; }).forEach(function (x) {
+        const i = byId[x.id]; if (i === undefined) return;
+        vals[i][w - 3] = Math.min(Number(x.ts) || now, now + 60000); vals[i][w - 2] = 1; vals[i][w - 1] = now; changed = true;
+      });
+      if (changed && vals.length) { ensureSize_(sh, vals.length + 1, w); sh.getRange(2, 1, vals.length, w - 3).setNumberFormat('@'); sh.getRange(2, 1, vals.length, w).setValues(vals); } // 날짜가 시트에서 자동 변환되지 않게 글자 서식
+      out[t] = vals.filter(function (v) { return since <= 0 || Number(v[w - 1]) > since; }).map(function (v) {
+        const o = {}; def.keys.forEach(function (k, j) { o[k] = v[j] instanceof Date ? Utilities.formatDate(v[j], ss.getSpreadsheetTimeZone(), (k === 'start' || k === 'end') ? 'yyyy-MM-dd HH:mm' : 'yyyy-MM-dd') : v[j]; });
+        o.id = str_(v[w - 4]); o.updated = Number(v[w - 3]) || 0; o.deleted = v[w - 2] ? 1 : 0; return o;
+      });
+    });
+    return { ok: true, now: now, rows: out };
+  } finally { lock.releaseLock(); }
 }

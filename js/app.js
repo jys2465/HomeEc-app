@@ -2,7 +2,7 @@
 (function (root) {
   'use strict';
   var AB = root.AB, U = AB.util, St = AB.store, Sy = AB.sync, UI = AB.ui;
-  AB.VERSION = '2.0.0';
+  AB.VERSION = '3.0.0';
   var $ = function (s) { return document.querySelector(s); };
 
   function ls(k, v) {
@@ -44,13 +44,15 @@
     var dots = ''; for (var i = 0; i < len; i++) dots += '<i class="' + (i < lk.buf.length ? 'f' : '') + '"></i>';
     var keys = ['1', '2', '3', '4', '5', '6', '7', '8', '9', 'C', '0', '⌫'].map(function (k) { return '<button type="button" data-k="' + k + '" aria-label="' + (k === 'C' ? '모두 지우기' : k === '⌫' ? '한 칸 지우기' : k) + '">' + k + '</button>'; }).join('');
     return '<img class="avatar" id="lk-avatar" src="' + AVATAR + '" alt="" onerror="this.replaceWith(Object.assign(document.createElement(\'div\'),{className:\'avatar\',innerHTML:\'<div style=&quot;font-size:40px;line-height:78px&quot;>📒</div>\'}))">' +
-      '<h2>' + (setup ? 'PIN 설정' : '가계부 잠금') + '</h2><p id="lk-msg">' + msg + '</p><div class="pin-dots" id="lk-dots">' + dots + '</div><div class="keypad">' + keys + '</div>' +
+      '<h2>' + (setup ? 'PIN 설정' : '내 하루장') + '</h2><p id="lk-msg">' + msg + '</p><div class="pin-dots" id="lk-dots">' + dots + '</div><div class="keypad">' + keys + '</div>' +
       (setup ? '<button type="button" class="btn" id="lk-ok" style="margin-top:18px;min-width:180px;background:#fff;color:#234A42" ' + (lk.buf.length >= 4 ? '' : 'disabled') + '>' + (lk.first ? '확인' : '다음') + '</button>' : '<button type="button" class="link" id="lk-forgot">PIN을 잊었어요</button>');
   }
   function draw() { var el = $('#lock'); el.innerHTML = lockHtml(); el.hidden = false; }
 
   L.show = function (mode) { lk.mode = mode; lk.buf = ''; lk.first = ''; draw(); };
-  L.lockNow = function () { if (!L.hasPin()) return; UI.closeSheet(); L.show('unlock'); $('#app').setAttribute('aria-hidden', 'true'); };
+  L.lockNow = function () { if (!L.hasPin()) return; UI.closeSheet();
+    document.querySelectorAll('.dlg-scrim').forEach(function (d) { d.remove(); }); var tt = document.getElementById('toast'); if (tt) tt.classList.remove('show'); /* 잠금 위 대화상자·토스트 제거 */
+    L.show('unlock'); $('#app').setAttribute('aria-hidden', 'true'); };
 
   function unlocked() {
     $('#lock').hidden = true; $('#lock').innerHTML = ''; $('#app').hidden = false; $('#app').removeAttribute('aria-hidden');

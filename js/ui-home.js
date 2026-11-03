@@ -105,13 +105,69 @@
       '</div></div></div>';
   }
 
+  /* ───── 내 하루장 · 오늘 ───── */
+  var WD = ['일', '월', '화', '수', '목', '금', '토'];
+  function todayHero(d) {
+    var t = d.budget.total, p = U.parse(d.today), dn = U.daysInMonth(p.y, p.m);
+    if (!d.isCurrent) return hero(d);
+    var daysLeft = U.diffDays(d.range.end, d.today) + 1, left = t.planMonth - t.projected, per = t.planMonth ? Math.max(0, left) / daysLeft : null;
+    var used = t.planMonth ? Math.min(1, t.actual / t.planMonth) : 0, dayR = p.d / dn, R1 = 40, R2 = 27, c1 = 2 * Math.PI * R1, c2 = 2 * Math.PI * R2;
+    var h = '<div class="card thero"><div class="ring"><svg viewBox="0 0 96 96" aria-hidden="true"><circle class="tr" cx="48" cy="48" r="' + R1 + '"/><circle class="a" cx="48" cy="48" r="' + R1 + '" stroke-dasharray="' + c1.toFixed(1) + '" stroke-dashoffset="' + c1.toFixed(1) + '" data-off="' + (c1 * (1 - used)).toFixed(1) + '"/>' +
+      '<circle class="tr" cx="48" cy="48" r="' + R2 + '" style="stroke-width:8"/><circle class="b" cx="48" cy="48" r="' + R2 + '" style="stroke-width:8" stroke-dasharray="' + c2.toFixed(1) + '" stroke-dashoffset="' + c2.toFixed(1) + '" data-off="' + (c2 * (1 - dayR)).toFixed(1) + '"/></svg>' +
+      '<b class="num">' + Math.round(used * 100) + '%</b></div><div class="grow">';
+    if (per != null) h += '<div class="k">오늘 써도 되는 돈</div><div class="big num"><span class="m countup" data-to="' + Math.round(per) + '">' + U.num(per) + '</span><small>원</small></div>';
+    else h += '<div class="k">이번 달 지출</div><div class="big num"><span class="m countup" data-to="' + Math.round(t.actual) + '">' + U.num(t.actual) + '</span><small>원</small></div>';
+    h += '<div class="k"><i class="lg a"></i>예산 ' + Math.round(used * 100) + '% <i class="lg b"></i>날짜 ' + Math.round(dayR * 100) + '%</div></div>' +
+      '<button class="cbtn sm" data-act="hide-amt" aria-label="금액 가리기" style="align-self:flex-start">' + UI.ic('eye') + '</button></div>';
+    if (left < 0 && t.planMonth) h = h.replace('<div class="k">오늘 써도 되는 돈</div>', '<div class="k exp">예정까지 더하면 ' + U.won(-left) + ' 초과</div>');
+    return h;
+  }
+  function quickIcons() {
+    return '<div class="quick">' + [['asset', 'wallet', 'var(--blue)', '자산'], ['entries', 'list', 'var(--brand)', '내역'], ['analysis', 'chart', 'var(--plan)', '분석'], ['jar', 'jar', 'var(--warn)', '저금통']].map(function (q) {
+      return '<button class="qk" ' + (q[0] === 'hist' ? 'data-act="hist"' : 'data-act="tab" data-tab="' + q[0] + '"') + '><span class="tile" style="background:' + q[2] + '">' + UI.ic(q[1], 2.1) + '</span><span>' + q[3] + '</span></button>'; }).join('') + '</div>';
+  }
+  function accounts(d) {
+    var list = d.acct.list.filter(function (a) { return a.balance || a.in || a.out; }).slice(0, 4);
+    if (!list.length) return '';
+    return '<div class="sec row between"><span>계정 잔액</span><button class="link" data-act="tab" data-tab="asset">모두 ›</button></div><div class="card alist">' + list.map(function (a) { return UI.accRow(a, d.eff, d, false); }).join('') + '</div>';
+  }
+  function flow7(d) {
+    if (!d.isCurrent) return '';
+    var days = [], mx = 1;
+    for (var i = 1; i <= 7; i++) {
+      var day = U.addDays(d.today, i), out = 0, inc = 0, pay = 0;
+      d.rows.forEach(function (r) { if (r.date !== day) return; if (r.type === 'expense') out += Math.max(r.amount || 0, r.budget || 0); else if (r.type === 'budget') out += r.budget || 0; else if (r.type === 'income') inc += r.amount || 0; });
+      d.cards.forEach(function (c) { if (c.due === day) pay += c.owed; });
+      var v = out + pay; mx = Math.max(mx, v, inc); days.push({ day: day, out: out, inc: inc, pay: pay, v: v });
+    }
+    var big = days.filter(function (x) { return x.pay || x.v >= mx * 0.6; }).slice(0, 2);
+    var note = big.length ? big.map(function (x) { var q = U.parse(x.day); return q.m + '/' + q.d + ' ' + (x.pay ? '카드 결제 ' : '예정 ') + U.num(x.v); }).join(' · ') : '큰 결제 예정이 없어요';
+    return '<div class="sec row between"><span>다음 7일 돈 흐름</span><span class="k">결제 · 지출 예정</span></div><div class="card"><div class="flow7">' + days.map(function (x) {
+      var q = U.parse(x.day), w = new Date(Date.UTC(q.y, q.m - 1, q.d)).getUTCDay();
+      return '<div><i class="' + (x.pay ? 'pay' : x.inc > x.v ? 'in' : '') + '" style="height:0" data-h="' + Math.max(4, Math.round(Math.max(x.v, x.inc) / mx * 54)) + '"></i><span class="' + (w === 0 || w === 6 ? 'exp' : '') + '">' + WD[w] + '</span></div>'; }).join('') +
+      '</div><div class="t2" style="margin-top:6px">' + esc(note) + '</div></div>';
+  }
+  function todayLine(d) {
+    var list = C.sortRows(d.rows.filter(function (r) { return r.date === d.today && r.type !== 'budget'; }));
+    var p = U.parse(d.today);
+    return '<div class="sec row between"><span>오늘의 하루 · ' + p.m + '월 ' + p.d + '일 ' + WD[new Date(Date.UTC(p.y, p.m - 1, p.d)).getUTCDay()] + '</span><button class="link" data-act="tab" data-tab="entries">내역 ›</button></div>' +
+      '<div class="card">' + (list.length ? list.map(function (r) { return UI.row(r, d.today); }).join('') : '<div class="empty" style="padding:14px"><b>오늘 기록이 아직 없어요</b>가운데 ＋로 바로 남겨요.</div>') + '</div>';
+  }
+
   UI.views.home = {
     render: function () {
       var d = UI.derive(), h = '';
       if (!d.rows.length) return onboarding();
       var nc = St.conflicts().length;
-      if (nc) h += '<div class="banner"><span>⚠</span><div><b>다른 곳에서 먼저 바뀐 내역이 ' + nc + '건 있어요</b>내 변경은 보관해 뒀어요. <button class="link" style="color:var(--brand);font-weight:700" data-act="go" data-tab="settings">설정에서 확인</button></div></div>';
-      return h + hero(d) + quick(d) + funding(d) + cards(d) + hot(d) + recent(d);
+      if (nc) h += '<div class="banner"><span>⚠</span><div><b>다른 곳에서 먼저 바뀐 내역 ' + nc + '건</b><button class="link" style="color:var(--brand);font-weight:700" data-act="go" data-tab="settings">설정에서 확인</button></div></div>';
+      return h + todayHero(d) + quickIcons() + accounts(d) + flow7(d) + funding(d) + cards(d) + hot(d) + todayLine(d);
+    },
+    after: function () {
+      setTimeout(function () {
+        document.querySelectorAll('#view .ring [data-off]').forEach(function (c) { c.setAttribute('stroke-dashoffset', c.dataset.off); });
+        document.querySelectorAll('#view .flow7 i').forEach(function (i) { i.style.height = i.dataset.h + 'px'; });
+      }, 60);
+      UI.countUps();
     }
   };
 

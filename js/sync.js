@@ -60,6 +60,8 @@
     } finally { if (timer) clearTimeout(timer); }
   }
 
+  Sy.call = function (payload, ms) { return call(payload, ms); }; // 노트·일정·저금통(side) 동기화에서 씀
+
   /** 연결 테스트 */
   Sy.ping = async function () {
     if (!Sy.configured()) return { ok: false, error: '웹 앱 URL과 토큰을 먼저 입력해 주세요.' };
@@ -93,7 +95,10 @@
         };
         if (dirty) { var c = Object.assign({}, cfg); delete c.ts; payload.cfg = { json: JSON.stringify(c), ts: cfg.ts }; }
         if (opts.wantSum && loop === 0) payload.want = 'sum';
-        var res = await call(payload);
+        St.markInflight(ops.map(function (o) { return o.seq; }));
+        var sentCfgTs = cfg.ts;
+        var res;
+        try { res = await call(payload); } finally { St.markInflight([]); }
         if (!res.ok) { var err = new Error(ERR[res.err] || ('서버 오류: ' + res.err)); err.code = res.err; throw err; }
         if (res.full && !opts.force) {
           var local = St.count();
@@ -104,7 +109,7 @@
           }
         }
         await St.applyServer(res, ops.map(function (o) { return o.seq; }));
-        if (res.cfg) { if (res.cfg.json) await St.applyServerCfg(res.cfg.json, res.cfg.ts); else if (res.cfg.saved) await St.cfgSaved(); }
+        if (res.cfg) { if (res.cfg.json) await St.applyServerCfg(res.cfg.json, res.cfg.ts); else if (res.cfg.saved) await St.cfgSaved(sentCfgTs); }
         result.conflicts += (res.conflicts || []).length;
         result.rejected += (res.rejected || []).length;
         if (res.sum) result.sum = res.sum;

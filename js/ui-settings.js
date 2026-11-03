@@ -29,6 +29,13 @@
   function render() {
     var d = UI.derive(), st = Sy.status(), conf = St.conflicts(), theme = ls('ab.theme') || 'auto', lockSec = ls('ab.lockSec');
     lockSec = lockSec === null ? '60' : lockSec;
+    var fk = ls('ab.fontK') || '1';
+    var top = '<div class="grp">' +
+      '<div class="r"><span class="st" style="background:var(--blue)"><b style="font-size:15px">가</b></span><span class="t">글씨</span><div class="seg2" style="width:138px">' + [['1', '보통'], ['1.12', '크게'], ['1.24', '아주']].map(function (x) { return '<button class="' + (fk === x[0] ? 'on' : '') + '" data-act="font-k" data-v="' + x[0] + '">' + x[1] + '</button>'; }).join('') + '</div></div>' +
+      '<div class="r"><span class="st" style="background:#3A3F48">' + UI.ic('eye', 2) + '</span><span class="t">화면</span><div class="seg2" style="width:138px">' + [['auto', '자동'], ['light', '밝게'], ['dark', '어둡게']].map(function (x) { return '<button class="' + (theme === x[0] ? 'on' : '') + '" data-act="theme" data-v="' + x[0] + '">' + x[1] + '</button>'; }).join('') + '</div></div>' +
+      '<div class="r"><span class="st" style="background:var(--warn)">' + UI.ic('card', 2) + '</span><span class="t">자금 부족에 카드 포함</span><button class="sw" data-act="card-short" role="switch" aria-checked="' + UI.cardShort() + '" aria-label="자금 부족에 카드 포함"><i></i></button></div>' +
+      '<div class="r"><span class="st" style="background:var(--ink2)">' + UI.ic('eye', 2) + '</span><span class="t">금액 가리기</span><button class="sw" data-act="hide-amt" role="switch" aria-checked="' + UI.hidden() + '" aria-label="금액 가리기"><i></i></button></div>' +
+      '<button class="r" data-act="hist"><span class="st" style="background:var(--blue)">' + UI.ic('history', 2) + '</span><span class="t">최근 변경 3건</span><span class="v">' + AB.history.activeCount() + '건</span>' + UI.CHEV + '</button></div>';
     var h = '<div class="card"><h3>구글 시트 연결 <span class="chip ' + (!st.configured ? '' : st.state === 'error' ? 'bad' : 'ok') + '">' + (st.configured ? (st.state === 'error' ? '오류' : '연결됨') : '미연결') + '</span></h3>' +
       '<div class="field"><label>웹 앱 URL</label><input id="set-url" class="input" type="url" placeholder="https://script.google.com/macros/s/…/exec" value="' + esc(Sy.getUrl()) + '" autocomplete="off" autocapitalize="off"></div>' +
       '<div class="field"><label>연결 토큰 <span class="faint">(시트 메뉴 &gt; 가계부 v2 &gt; 앱 연결 토큰 보기)</span></label><input id="set-token" class="input" type="password" placeholder="토큰" value="' + esc(Sy.getToken()) + '" autocomplete="off"></div>' +
@@ -47,14 +54,17 @@
       h += '</div>';
     }
 
+    var conn = h; h = '';
     h += '<div class="card"><h3>보안</h3>' +
       '<div class="setrow"><span>자동 잠금</span><select class="select" style="width:auto;min-width:9em" data-ch="lock-sec">' + [['0', '앱을 나가면 바로'], ['30', '30초 후'], ['60', '1분 후'], ['300', '5분 후'], ['-1', '자동 잠금 안 함']].map(function (o) { return '<option value="' + o[0] + '"' + (lockSec === o[0] ? ' selected' : '') + '>' + o[1] + '</option>'; }).join('') + '</select></div>' +
       '<div class="setrow"><span>PIN 변경</span><button class="btn sm soft" data-act="pin-change">변경</button></div>' +
       '<div class="setrow"><span>지금 잠그기</span><button class="btn sm ghost" data-act="lock">잠금</button></div>' +
       '<p class="hint" style="margin-top:6px">PIN은 화면을 가리는 잠금이에요(데이터 암호화가 아닙니다). 기기 자체 잠금과 함께 쓰세요.</p></div>';
 
+    var sec = h; h = '';
     h += mgrCard('계정 관리', 'accounts', d.eff.accounts.map(function (a) { return a.name; }), d) + mgrCard('지출 항목 관리', 'expenses', d.eff.expenses, d) + mgrCard('수입 항목 관리', 'incomes', d.eff.incomes, d);
 
+    var mgr = h; h = '';
     h += '<div class="card"><h3>데이터</h3>' +
       '<input id="xl-file" type="file" accept=".xlsx,.xls,.csv" data-ch="xl-file" hidden>' +
       '<div class="setrow"><span>엑셀 가져오기 <span class="faint small">(.xlsx/.csv)</span></span><button class="btn sm soft" data-act="xl-pick">파일 선택</button></div>' +
@@ -63,8 +73,12 @@
       '<div class="setrow"><span>' + U.parse(S.month + '-01').m + '월 내역 모두 삭제</span><button class="btn sm ghost" style="color:var(--expense)" data-act="month-del">삭제</button></div>' +
       '<div class="setrow"><span>이 기기 데이터 초기화</span><button class="btn sm ghost" style="color:var(--expense)" data-act="wipe">초기화</button></div></div>';
 
-    h += '<div class="card"><h3>화면</h3><div class="seg">' + [['auto', '자동'], ['light', '라이트'], ['dark', '다크']].map(function (t) { return '<button class="' + (theme === t[0] ? 'on' : '') + '" data-act="theme" data-v="' + t[0] + '">' + t[1] + '</button>'; }).join('') + '</div></div>';
-    h += '<p class="hint center faint" style="padding:6px 0 0">통합 가계부 v' + (AB.VERSION || '2') + ' · 시트 = 데이터 보관소 · 앱 = 계산·입력</p>';
+    var data = h;
+    var open = S.setOpen || '', grpRow = function (k, icn, col, t, v) { return '<button class="r" data-act="set-open" data-k="' + k + '"><span class="st" style="background:' + col + '">' + UI.ic(icn, 2) + '</span><span class="t">' + t + '</span><span class="v">' + v + '</span><svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" style="transform:rotate(' + (open === k ? 90 : 0) + 'deg);transition:transform .2s"><path d="M9 6l6 6-6 6"/></svg></button>'; };
+    h = top + '<div class="grp">' + grpRow('lock', 'bell', 'var(--expense)', '잠금', 'PIN · 자동 잠금') + grpRow('mgr', 'list', 'var(--brand)', '계정 · 항목', d.eff.accounts.length + ' · ' + d.eff.expenses.length) +
+      grpRow('adv', 'sync', 'var(--ink3)', '고급', (conf.length ? '충돌 ' + conf.length + ' · ' : '') + '동기화 · 엑셀') + '</div>' +
+      (open === 'lock' ? sec : open === 'mgr' ? mgr : open === 'adv' ? conn + data : '');
+    h += '<p class="hint center faint one" style="padding:6px 0 0">내 하루장 v' + (AB.VERSION || '3') + ' · 시트에 보관 · 앱에서 계산</p>';
     return h;
   }
 
@@ -83,6 +97,10 @@
   }
 
   UI.views.settings = { render: render };
+  UI.actions['set-open'] = function (el) { S.setOpen = S.setOpen === el.dataset.k ? '' : el.dataset.k; UI.render(); };
+  UI.applyFont = function (k) { document.documentElement.style.fontSize = (16 * (+k || 1)) + 'px'; };
+  UI.actions['font-k'] = function (el) { ls('ab.fontK', el.dataset.v); UI.applyFont(el.dataset.v); UI.render(); };
+  UI.applyFont(ls('ab.fontK') || '1');
 
   /* ───── 시트 연결 ───── */
   UI.actions['conn-save'] = async function () {
@@ -254,7 +272,7 @@
   };
   UI.actions.wipe = async function () {
     if (!(await UI.confirm('이 기기에 저장된 내역·설정·PIN·시트 연결 정보를 모두 지웁니다.\n시트의 데이터는 그대로 남아요.\n계속할까요?', { danger: true, ok: '초기화' }))) return;
-    await St.wipe(); ['ab.url', 'ab.token', 'ab.pin', 'ab.lockSec', 'ab.theme'].forEach(function (k) { try { localStorage.removeItem(k); } catch (e) { /* 무시 */ } });
+    await St.wipe(); if (AB.side) AB.side.wipe(); if (AB.history) AB.history.clear(); ['ab.url', 'ab.token', 'ab.pin', 'ab.lockSec', 'ab.theme', 'ab.fail', 'ab.until'].forEach(function (k) { try { localStorage.removeItem(k); } catch (e) { /* 무시 */ } });
     location.reload();
   };
 

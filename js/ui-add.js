@@ -15,10 +15,10 @@
 
   function blank(p) {
     var d = UI.derive();
-    return { id: '', isNew: true, type: p.type || 'expense', date: p.date || d.today, repeat: '변동', category: '', usage: '', amount: 0, budget: 0, from: '', to: '', memo1: '', memo2: '', manual: {}, orig: null };
+    return { id: '', isNew: true, type: p.type || 'expense', date: p.date || d.today, repeat: '변동', category: '', usage: '', amount: +p.amount || 0, budget: 0, from: '', to: '', memo1: '', memo2: '', manual: p.amount ? { amount: true } : {}, orig: null };
   }
   function fromRow(r) {
-    return { id: r.id, isNew: false, type: r.type, date: r.date, repeat: r.repeat, category: r.category, usage: r.usage, amount: r.type === 'budget' ? r.budget : r.amount, budget: r.budget, from: r.from, to: r.to, memo1: r.memo1, memo2: r.memo2, manual: { cat: true, from: true, to: true, repeat: true }, orig: r };
+    return { id: r.id, isNew: false, type: r.type, date: r.date, repeat: r.repeat, category: r.category, usage: r.usage, amount: r.type === 'budget' ? r.budget : r.amount, budget: r.budget, from: r.from, to: r.to, memo1: r.memo1, memo2: r.memo2, manual: { cat: true, from: true, to: true, repeat: true, amount: true }, orig: r };
   }
   function catType() { return F.type === 'income' ? 'income' : 'expense'; }
 
@@ -37,7 +37,7 @@
       if (!F.manual.from && r.from) F.from = r.from;
       if (!F.manual.to && r.to) F.to = r.to;
       if (!F.manual.repeat) F.repeat = r.repeat;
-      if (!F.amount) F.amount = F.type === 'budget' ? r.budget : r.amount;
+      if (!F.manual.amount && !F.amount) F.amount = F.type === 'budget' ? r.budget : r.amount; // 직접 넣은 0원은 덮어쓰지 않음
       return true;
     }
     if (!F.manual.cat && usage && F.type !== 'transfer') { var g = SM.guessCategory(d.idx, usage, catType()); if (g) F.category = g; }
@@ -56,6 +56,7 @@
   function html() {
     var edit = !F.isNew;
     return '<div class="sh-head"><h2>' + (edit ? '내역 수정' : '내역 입력') + '</h2><button class="icon-btn" data-act="close" aria-label="닫기">' + UI.icon('x') + '</button></div>' +
+      (F.isNew ? '<div class="field"><div class="row" style="gap:6px"><input id="f-line" class="input" data-in="f-line" placeholder="한 줄로: 점심 김치찌개 9000 · 내일 병원 3만" autocomplete="off" style="flex:1"><button type="button" class="btn sm soft" data-act="f-smsopen" aria-label="카드 문자 붙여넣기">문자</button></div><div id="f-line-hint" class="t2" style="margin-top:4px"></div></div>' : '') +
       '<div class="seg" id="f-types">' + [['expense', '지출'], ['income', '수입'], ['transfer', '이체'], ['budget', '예산']].map(function (t) { return '<button type="button" data-act="f-type" data-v="' + t[0] + '">' + t[1] + '</button>'; }).join('') + '</div>' +
       '<div class="field" style="margin-top:14px"><label id="f-amt-label">금액</label><div class="suffix-wrap"><input id="f-amount" class="input amount-in num" inputmode="numeric" data-in="f-amount" placeholder="0" autocomplete="off"><span class="suffix">원</span></div>' +
       '<div class="quick-amt"><button type="button" data-act="f-add" data-v="1000">+1천</button><button type="button" data-act="f-add" data-v="5000">+5천</button><button type="button" data-act="f-add" data-v="10000">+1만</button><button type="button" data-act="f-add" data-v="50000">+5만</button><button type="button" data-act="f-add" data-v="0">지움</button></div></div>' +
@@ -121,8 +122,35 @@
   UI.openEdit = function (id) { var r = St.get(id); if (r) open(fromRow(r)); };
 
   /* ───── 입력 처리 ───── */
-  UI.inputs['f-amount'] = function (el) { el.value = U.fmtInput(el.value); F.amount = U.parseInput(el.value); };
+  UI.inputs['f-amount'] = function (el) { el.value = U.fmtInput(el.value); F.amount = U.parseInput(el.value); F.manual.amount = el.value !== ''; };
   UI.inputs['f-budget'] = function (el) { el.value = U.fmtInput(el.value); F.budget = U.parseInput(el.value); };
+  /* 한 줄 입력: 유형 · 금액(만 단위) · 날짜(오늘/내일/어제/N일) · 내용을 알아서 채움 */
+  UI.parseLine = function (text, today) {
+    var s = String(text || '').trim(), out = { type: null, amount: null, date: null, usage: '' };
+    if (!s) return out;
+    var dm = s.match(/(오늘|내일|모레|어제|그제)/);
+    if (dm) { out.date = U.addDays(today, { 오늘: 0, 내일: 1, 모레: 2, 어제: -1, 그제: -2 }[dm[1]]); s = s.replace(dm[0], ' '); }
+    else { var nd = s.match(/(\d{1,2})\s*일(?!\s*씩)/); if (nd && +nd[1] >= 1 && +nd[1] <= 31) { var p = U.parse(today), dd = Math.min(+nd[1], U.daysInMonth(p.y, p.m)); out.date = U.ymd(p.y, p.m, dd); s = s.replace(nd[0], ' '); } }
+    var m = s.match(/(\d[\d,]*(?:\.\d+)?)\s*(만|천)?\s*원?/);
+    if (m) { var n = +m[1].replace(/,/g, ''); out.amount = Math.round(n * (m[2] === '만' ? 10000 : m[2] === '천' ? 1000 : 1)); s = s.replace(m[0], ' '); }
+    if (/급여|월급|입금|용돈 ?받|환급|이자/.test(s)) out.type = 'income';
+    else if (/이체|옮김|저축|송금/.test(s)) out.type = 'transfer';
+    else if (/예산/.test(s)) { out.type = 'budget'; s = s.replace('예산', ' '); }
+    else out.type = 'expense';
+    out.usage = s.replace(/\s+/g, ' ').trim();
+    return out;
+  };
+  UI.inputs['f-line'] = function (el) {
+    var g = UI.parseLine(el.value, U.today()), hint = $('#f-line-hint'), T = { expense: '지출', income: '수입', transfer: '이체', budget: '예산' };
+    if (!el.value.trim()) { if (hint) hint.textContent = ''; return; }
+    if (g.type && g.type !== F.type) { F.type = g.type; }
+    if (g.amount != null) { F.amount = g.amount; F.manual.amount = true; }
+    if (g.date) F.date = g.date;
+    F.usage = g.usage; autoFill(F.usage); defaultAccounts(); refresh();
+    var us = $('#f-usage'); if (us) us.value = F.usage;
+    if (hint) hint.textContent = T[F.type] + ' · ' + U.num(F.amount || 0) + '원 · ' + F.date.slice(5).replace('-', '/') + (F.category ? ' · ' + F.category : '') + (F.from ? ' · ' + F.from : F.to ? ' · ' + F.to : '');
+  };
+  UI.actions['f-smsopen'] = function () { var m = $('#f-more'); if (m) { m.open = true; var t = $('#f-sms'); if (t) setTimeout(function () { t.focus(); t.scrollIntoView({ block: 'center' }); }, 50); } };
   UI.inputs['f-usage'] = function (el) { F.usage = el.value; autoFillQuiet(); suggest(); };
   function autoFillQuiet() { // 입력 중에는 칩만 바꾸고 내용 입력창은 건드리지 않음
     var before = [F.category, F.from, F.to, F.repeat, F.amount].join('|'); autoFill(F.usage);
@@ -140,7 +168,7 @@
   };
   UI.actions['f-repeat'] = function (el) { F.repeat = el.dataset.v; F.manual.repeat = true; refresh(); };
   UI.actions['f-pick'] = function (el) { var k = el.dataset.k; F[k] = el.dataset.v; F.manual[k === 'category' ? 'cat' : k] = true; refresh(); };
-  UI.actions['f-add'] = function (el) { var v = +el.dataset.v; F.amount = v ? F.amount + v : 0; $('#f-amount').value = F.amount ? U.fmtInput(F.amount) : ''; };
+  UI.actions['f-add'] = function (el) { var v = +el.dataset.v; F.amount = v ? F.amount + v : 0; F.manual.amount = true; $('#f-amount').value = F.amount ? U.fmtInput(F.amount) : ''; };
   UI.actions['f-sugg'] = function (el) { F.usage = el.dataset.u; F.manual = {}; autoFill(F.usage); defaultAccounts(); refresh(); $('#f-usage').value = F.usage; };
 
   function pickChange(key, list) {
@@ -185,7 +213,7 @@
     F.memo1 = $('#f-memo1').value.trim(); F.memo2 = $('#f-memo2').value.trim(); F.usage = $('#f-usage').value.trim(); F.date = $('#f-date').value;
     var bad = function (m) { err.textContent = m; var sh = UI.sheetEl(); if (sh) sh.scrollTop = sh.scrollHeight; };
     if (!U.parse(F.date)) return bad('날짜를 선택해 주세요.');
-    if (!(F.amount > 0)) return bad(t === 'budget' ? '예산금액을 입력해 주세요.' : '금액을 입력해 주세요.');
+    if (!isFinite(F.amount) || F.amount < 0) return bad(t === 'budget' ? '예산금액을 확인해 주세요.' : '금액을 확인해 주세요.'); // 0원도 저장 허용
     if (t !== 'transfer' && !F.category) return bad('항목을 골라 주세요.');
     if ((t === 'expense' || t === 'transfer') && !F.from) return bad(t === 'transfer' ? '보내는 계정을 골라 주세요.' : '출금 계정을 골라 주세요. (돈이 빠져나가는 계정이에요)');
     if ((t === 'income' || t === 'transfer') && !F.to) return bad(t === 'transfer' ? '받는 계정을 골라 주세요.' : '입금 계정을 골라 주세요. (돈이 들어오는 계정이에요)');
@@ -203,7 +231,7 @@
     if (more) {
       UI.toast('저장했어요 · 계속 입력하세요', { kind: 'ok', action: { label: '되돌리기', fn: undo } });
       var keep = { type: t, date: F.date };
-      F = blank(keep); F.repeat = row.repeat; $('#f-memo1').value = ''; $('#f-memo2').value = ''; $('#f-budget').value = ''; $('#f-usage').value = ''; $('#f-amount').value = ''; err.textContent = '';
+      F = blank(keep); F.repeat = row.repeat; $('#f-memo1').value = ''; $('#f-memo2').value = ''; $('#f-budget').value = ''; $('#f-usage').value = ''; $('#f-amount').value = ''; var fl = $('#f-line'); if (fl) fl.value = ''; var flh = $('#f-line-hint'); if (flh) flh.textContent = ''; err.textContent = '';
       defaultAccounts(); refresh(); setTimeout(function () { $('#f-amount').focus(); }, 30);
     } else {
       UI.closeSheet();

@@ -92,7 +92,7 @@
     if (d1) res.date = U.ymd(+d1[1], +d1[2], +d1[3]);
     else {
       var d2 = t.match(/(?:^|[^\d:])(\d{1,2})\/(\d{1,2})(?![\d:])/);
-      if (d2 && +d2[1] >= 1 && +d2[1] <= 12 && +d2[2] >= 1 && +d2[2] <= 31) {
+      if (d2 && +d2[1] >= 1 && +d2[1] <= 12 && +d2[2] >= 1 && +d2[2] <= U.daysInMonth(+today.slice(0, 4), +d2[1])) {
         var y = +today.slice(0, 4), cand = U.ymd(y, +d2[1], +d2[2]);
         if (cand > U.addDays(today, 1)) cand = U.ymd(y - 1, +d2[1], +d2[2]);
         res.date = cand;
@@ -139,20 +139,44 @@
   function fixedKey(r) { return [r.type, r.category, r.usage, r.from, r.to].join('|'); }
 
   /** 이번 달 '고정' 행을 다음 달로 복사할 계획(미리보기). 이미 있는 행·끝난 회차는 건너뜀. */
+  /*  주말·휴일 예산: 같은 항목·내용·금액의 '고정' 예산 행이 2건 이상이고 모두 쉬는 날(토·일·공휴일)에 있으면
+   *  날짜를 그대로 옮기지 않고, 새 달의 쉬는 날마다 1건씩 만듭니다(쉬는 날 수에 맞춰 늘거나 줄어듦). */
+  function offKey(r) { return [r.category, r.usage, r.budget, r.from, r.to].join('|'); }
   S.planFixedCopy = function (rows, srcYm, dstYm) {
     var sr = U.monthRange(srcYm), dr = U.monthRange(dstYm);
     var src = rows.filter(function (r) { return r.repeat === '고정' && r.date >= sr.start && r.date <= sr.end; })
       .sort(function (a, b) { return a.date < b.date ? -1 : a.date > b.date ? 1 : 0; });
-    var have = {};
-    rows.forEach(function (r) { if (r.date >= dr.start && r.date <= dr.end) { var k = fixedKey(r); have[k] = (have[k] || 0) + 1; } });
-    return src.map(function (r) {
+    var groups = {};
+    src.forEach(function (r) { if (r.type === 'budget') { var k = offKey(r); (groups[k] = groups[k] || []).push(r); } });
+    var offGroups = {};
+    Object.keys(groups).forEach(function (k) { var g = groups[k]; if (g.length >= 2 && g.every(function (r) { return U.isOffDay(r.date); })) offGroups[k] = g; });
+    var have = {}, haveOn = {};
+    rows.forEach(function (r) { if (r.date >= dr.start && r.date <= dr.end) { var k = fixedKey(r); have[k] = (have[k] || 0) + 1; if (r.type === 'budget') haveOn[offKey(r) + '@' + r.date] = true; } });
+    var dstOff = U.offDays(dstYm), out = [], done = {};
+    src.forEach(function (r) {
+      var ok = r.type === 'budget' ? offKey(r) : null;
+      if (ok && offGroups[ok]) {
+        if (done[ok]) return; done[ok] = true;
+        var g = offGroups[ok];
+        dstOff.forEach(function (o) {
+          var item = { src: g[0], row: null, skip: null, off: { group: ok, from: g.length, to: dstOff.length, name: o.name, w: o.w } };
+          if (haveOn[ok + '@' + o.date]) item.skip = '이미 있어요';
+          else item.row = Object.assign({}, g[0], { id: U.uid(), date: o.date, rev: 0, ts: 0, memo2: o.name ? (g[0].memo2 ? g[0].memo2 : o.name) : g[0].memo2 });
+          out.push(item);
+        });
+        return;
+      }
+      out.push(plain(r));
+    });
+    return out;
+    function plain(r) {
       var k = fixedKey(r), item = { src: r, row: null, skip: null };
       if (have[k] > 0) { have[k]--; item.skip = '이미 있어요'; return item; }
       var memo = S.bumpMemo(r.memo1);
       if (memo.finished) { item.skip = '회차가 끝났어요'; return item; }
       item.row = Object.assign({}, r, { id: U.uid(), date: U.sameDayIn(r.date, dstYm), memo1: memo.text, rev: 0, ts: 0 });
       return item;
-    });
+    }
   };
 
 })(typeof window !== 'undefined' ? window : globalThis);

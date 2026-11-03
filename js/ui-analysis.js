@@ -56,7 +56,7 @@
 
   /* ───── 통계 ───── */
   function statsView(d) {
-    var type = S.statsMode, items = Ch.pieItems(C.categoryTotals(d.rows, d.range.start, d.asOf, type)), total = U.sum(items, function (i) { return i.amount; });
+    var type = S.statsMode, items = Ch.pieItems(C.categoryTotals(d.rows, d.range.start, d.asOf, type), 99), total = U.sum(items, function (i) { return i.amount; });
     var months = []; for (var i = 5; i >= 0; i--) months.push(U.shiftMonth(S.month, -i));
     var months12 = []; for (var j = 11; j >= 0; j--) months12.push(U.shiftMonth(S.month, -j));
     var mom = C.momCompare(d.rows, S.month, d.today);
@@ -79,11 +79,22 @@
     return h;
   }
 
+  /* ───── 점검: 정합성 + 시트 대조를 한 화면에 ───── */
+  function checkView(d) {
+    var a = d.audit, ok = a.ok && !a.errors, p = U.parse(d.month + '-01');
+    var h = '<div class="card row" style="gap:12px"><span class="st" style="background:' + (ok ? 'var(--income)' : 'var(--expense)') + '">' + UI.ic(ok ? 'check' : 'bell', 2.3) + '</span><div class="grow"><b class="t1">' + p.m + '월 수입 − 지출 − 잔액 = ' + (a.diff === 0 ? '0' : U.signed(a.diff)) + '</b><div class="t2">' + (ok ? '장부와 계정 잔액이 맞아요' : '오류 ' + a.errors + '건 · 주의 ' + a.warns + '건') + '</div></div></div>';
+    var list = a.issues.slice(0, 20);
+    h += '<div class="sec">확인할 것 ' + a.issues.length + '건</div>';
+    h += list.length ? '<div class="card">' + list.map(function (it) { var r = it.row; return '<div class="li" data-act="edit" data-id="' + esc(r.id) + '"><div class="ic ' + (it.level === 'error' ? 'expense' : it.level === 'warn' ? 'budget' : 'transfer') + '">' + (it.level === 'error' ? '오' : it.level === 'warn' ? '주' : '참') + '</div><div class="main"><div class="t1">' + esc(r.usage || r.category || C.TYPE_LABEL[r.type]) + '</div><div class="t2">' + esc(it.text) + '</div></div><div class="amt num">' + U.num(r.type === 'budget' ? r.budget : r.amount) + '</div></div>'; }).join('') + (a.issues.length > 20 ? '<button class="btn ghost block" data-act="audit">전체 ' + a.issues.length + '건 보기</button>' : '') + '</div>' : '<div class="card"><div class="empty" style="padding:14px"><b>고칠 것이 없어요</b></div></div>';
+    h += '<div class="sec">시트와 대조</div><div class="grp"><button class="r" data-act="sheet-compare"><span class="st" style="background:var(--brand)">' + UI.ic('sync', 2) + '</span><span class="t">시트 sumary와 대조</span><span class="v">계정 · 항목 누계</span>' + UI.CHEV + '</button></div>';
+    return h;
+  }
+
   UI.views.analysis = {
     render: function () {
       var d = UI.derive();
-      var h = '<div class="seg" style="margin-bottom:12px">' + [['budget', '예산'], ['accounts', '자산'], ['stats', '통계']].map(function (t) { return '<button class="' + (S.ana === t[0] ? 'on' : '') + '" data-act="ana" data-v="' + t[0] + '">' + t[1] + '</button>'; }).join('') + '</div>';
-      return h + (S.ana === 'budget' ? budgetView(d) : S.ana === 'accounts' ? accountsView(d) : statsView(d));
+      var h = '<div class="seg" style="margin-bottom:12px">' + [['budget', '항목'], ['stats', '추이'], ['check', '점검']].map(function (t) { return '<button class="' + (S.ana === t[0] ? 'on' : '') + '" data-act="ana" data-v="' + t[0] + '">' + t[1] + '</button>'; }).join('') + '</div>';
+      return h + (S.ana === 'budget' ? budgetView(d) : S.ana === 'accounts' ? accountsView(d) : S.ana === 'check' ? checkView(d) : statsView(d));
     },
     after: function () {
       if (S.ana !== 'stats' || !chartData) return;

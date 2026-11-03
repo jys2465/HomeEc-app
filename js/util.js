@@ -20,11 +20,32 @@
     var m = String(s == null ? '' : s).match(/^(\d{4})\D+(\d{1,2})\D+(\d{1,2})/);
     if (!m) return null;
     var y = +m[1], mo = +m[2], d = +m[3];
-    if (mo < 1 || mo > 12 || d < 1 || d > 31) return null;
+    if (mo < 1 || mo > 12 || d < 1 || d > U.daysInMonth(y, mo)) return null; // 2/30 같은 없는 날짜 차단
     return { y: y, m: mo, d: d };
   };
 
   U.daysInMonth = function (y, m) { return new Date(Date.UTC(y, m, 0)).getUTCDate(); };
+
+  /* 한국 공휴일 (대체공휴일 포함). 출처: 2026·2027 공휴일 달력. 설정에서 추가한 날은 U.extraHolidays 로 더함 */
+  U.HOLIDAYS = {
+    '2026-01-01': '신정', '2026-02-16': '설날 연휴', '2026-02-17': '설날', '2026-02-18': '설날 연휴', '2026-03-02': '대체공휴일', '2026-05-01': '근로자의 날',
+    '2026-05-05': '어린이날', '2026-05-25': '대체공휴일', '2026-06-03': '지방선거', '2026-07-17': '제헌절', '2026-08-17': '대체공휴일',
+    '2026-09-24': '추석 연휴', '2026-09-25': '추석', '2026-10-05': '대체공휴일', '2026-10-09': '한글날', '2026-12-25': '성탄절',
+    '2027-01-01': '신정', '2027-02-08': '설날 연휴', '2027-02-09': '대체공휴일', '2027-03-01': '삼일절', '2027-05-03': '대체공휴일', '2027-05-05': '어린이날',
+    '2027-05-13': '부처님오신날', '2027-07-19': '대체공휴일', '2027-08-16': '대체공휴일', '2027-09-14': '추석 연휴', '2027-09-15': '추석', '2027-09-16': '추석 연휴',
+    '2027-10-04': '대체공휴일', '2027-10-11': '대체공휴일', '2027-12-27': '대체공휴일'
+  };
+  U.extraHolidays = {};
+  U.holidayName = function (ymd) { return U.extraHolidays[ymd] || U.HOLIDAYS[ymd] || ''; };
+  U.weekday = function (ymd) { var p = U.parse(ymd); return p ? new Date(Date.UTC(p.y, p.m - 1, p.d)).getUTCDay() : -1; };
+  /** 쉬는 날(토·일·공휴일)인가 */
+  U.isOffDay = function (ymd) { var w = U.weekday(ymd); return w === 0 || w === 6 || !!U.holidayName(ymd); };
+  /** 그 달의 쉬는 날 목록 [{date, w, name}] */
+  U.offDays = function (ym) {
+    var r = U.monthRange(ym), out = [];
+    for (var d = r.start; d <= r.end; d = U.addDays(d, 1)) if (U.isOffDay(d)) out.push({ date: d, w: U.weekday(d), name: U.holidayName(d) });
+    return out;
+  };
 
   U.addDays = function (ymd, n) {
     var p = U.parse(ymd);

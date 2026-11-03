@@ -34,7 +34,7 @@
   /* ───── 파생값(한 번 계산해 모든 화면이 공유) ───── */
   var cache = { key: '', val: null };
   UI.derive = function () {
-    var S = UI.S, today = U.today(), key = St.version() + '|' + S.month + '|' + today;
+    var S = UI.S, today = U.today(), key = St.version() + '|' + S.month + '|' + today + '|' + UI.cardShort();
     if (cache.key === key) return cache.val;
     var rows = St.rows(), eff = C.effective(St.cfg(), rows), range = U.monthRange(S.month), asOf = C.asOfFor(S.month, today);
     var d = { rows: rows, eff: eff, range: range, today: today, asOf: asOf, month: S.month };
@@ -43,13 +43,17 @@
     d.acct = C.accountTable(rows, eff, range.start, asOf, range.end);
     d.budget = C.budgetTable(rows, eff, range.start, asOf, range.end);
     d.totals = C.periodTotals(rows, range.start, asOf);
-    d.funding = C.fundingPlan(d.acct, eff);
+    d.funding = C.fundingPlan(d.acct, eff, { cardShort: UI.cardShort() });
     d.cards = C.cardSchedule(rows, eff, today);
     d.audit = C.audit(rows, eff, range.start, asOf);
     d.idx = AB.smart.buildIndex(rows, today);
     cache = { key: key, val: d };
     return d;
   };
+
+  /* 카드 마이너스를 자금 부족에 넣을지 (기본: 끔 → '결제 예정'으로만) */
+  UI.cardShort = function () { try { return localStorage.getItem('ab.cardShort') === '1'; } catch (e) { return false; } };
+  UI.setCardShort = function (on) { try { localStorage.setItem('ab.cardShort', on ? '1' : '0'); } catch (e) { /* 무시 */ } cache.key = ''; UI.render(); };
 
   /* ───── 공통 HTML 부품 ───── */
   UI.gauge = function (b) {
