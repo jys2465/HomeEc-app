@@ -58,6 +58,11 @@
     X.list('events').forEach(function (e) {
       var d0 = String(e.start || '').slice(0, 10); if (!U.parse(d0)) return;
       var rep = e.repeat || '', push = function (d) { if (d >= start && d <= end) out.push({ ev: e, date: d, time: String(e.start || '').slice(11, 16) }); };
+      var e0 = String(e.end || '').slice(0, 10);
+      if (!rep && e.allday == 1 && U.parse(e0) && e0 > d0) { // 기간 일정: 시작~종료 모든 날짜
+        for (var dx = d0, k = 0; dx <= e0 && k < 400; dx = U.addDays(dx, 1), k++) if (dx >= start && dx <= end) out.push({ ev: e, date: dx, time: '', span: [d0, e0] });
+        return;
+      }
       if (!rep) { push(d0); return; }
       for (var d = d0, n = 0; d <= end && n < 800; n++) {
         push(d);

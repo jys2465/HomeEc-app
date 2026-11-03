@@ -123,7 +123,7 @@
     return h;
   }
   function quickIcons() {
-    return '<div class="quick">' + [['asset', 'wallet', 'var(--blue)', '자산'], ['entries', 'list', 'var(--brand)', '내역'], ['analysis', 'chart', 'var(--plan)', '분석'], ['jar', 'jar', 'var(--warn)', '저금통']].map(function (q) {
+    return '<div class="quick">' + [['cal', 'cal', 'var(--plan)', '달력'], ['note', 'note', 'var(--note)', '노트'], ['jar', 'jar', 'var(--warn)', '저금통'], ['hist', 'history', 'var(--blue)', '최근 변경']].map(function (q) {
       return '<button class="qk" ' + (q[0] === 'hist' ? 'data-act="hist"' : 'data-act="tab" data-tab="' + q[0] + '"') + '><span class="tile" style="background:' + q[2] + '">' + UI.ic(q[1], 2.1) + '</span><span>' + q[3] + '</span></button>'; }).join('') + '</div>';
   }
   function accounts(d) {

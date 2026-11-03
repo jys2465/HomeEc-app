@@ -796,7 +796,7 @@ function sumarySnapshot_() {
  */
 const SIDE = {
   notes:  { head: ['날짜', '종류', '제목', '내용', '기분', '태그', '연결내역', '사진', '비밀'], keys: ['date', 'kind', 'title', 'body', 'mood', 'tags', 'link', 'photo', 'secret'] },
-  events: { head: ['시작', '끝', '하루종일', '제목', '장소', '반복', '사람', '예상비용', '연결내역'], keys: ['start', 'end', 'allday', 'title', 'place', 'repeat', 'who', 'cost', 'link'] },
+  events: { head: ['시작', '끝', '하루종일', '제목', '장소', '반복', '사람', '예상비용', '연결내역', '색', '예산항목'], keys: ['start', 'end', 'allday', 'title', 'place', 'repeat', 'who', 'cost', 'link', 'color', 'category'] },
   goals:  { head: ['이름', '목표금액', '목표일', '태그', '모은금액', '메모'], keys: ['name', 'target', 'due', 'tag', 'saved', 'memo'] }
 };
 const SIDE_META = ['id', 'updated', 'deleted', 'synced']; // updated = 고친 시각(누가 이기는지), synced = 서버에 들어온 시각(since 기준)
@@ -810,6 +810,18 @@ function side_(p) {
     Object.keys(SIDE).forEach(function (t) {
       const def = SIDE[t], head = def.head.concat(SIDE_META), sh = getOrCreate_(ss, t, head, false);
       if (sh.getLastRow() < 1) sh.getRange(1, 1, 1, head.length).setValues([head]);
+      else { // 열이 늘어난 경우(예: 일정 '색' 추가) 머리줄을 보고 옛 행을 새 칸 순서로 옮김
+        const hw = Math.max(sh.getLastColumn(), 1), cur = sh.getRange(1, 1, 1, hw).getValues()[0].map(str_);
+        if (cur.join('|') !== head.join('|')) {
+          const nOld = sh.getLastRow() - 1, old = nOld > 0 ? sh.getRange(2, 1, nOld, hw).getValues() : [];
+          const map = head.map(function (h) { return cur.indexOf(h); });
+          const moved = old.map(function (v) { return map.map(function (j) { return j >= 0 ? v[j] : ''; }); });
+          ensureSize_(sh, Math.max(nOld + 1, 2), head.length);
+          sh.getRange(1, 1, Math.max(nOld + 1, 1), hw).clearContent();
+          sh.getRange(1, 1, 1, head.length).setValues([head]);
+          if (moved.length) sh.getRange(2, 1, moved.length, head.length).setValues(moved);
+        }
+      }
       const n = sh.getLastRow() - 1, w = head.length;
       const vals = n > 0 ? sh.getRange(2, 1, n, w).getValues() : [];
       const byId = {};
