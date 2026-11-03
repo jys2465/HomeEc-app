@@ -57,7 +57,7 @@
     var edit = !F.isNew;
     return '<div class="sh-head"><h2>' + (edit ? '내역 수정' : '내역 입력') + '</h2><button class="icon-btn" data-act="close" aria-label="닫기">' + UI.icon('x') + '</button></div>' +
       (F.isNew ? '<div class="seg2" style="margin-bottom:10px"><button class="on" type="button">내역</button><button type="button" data-act="note-new">노트</button><button type="button" data-act="ev-new">일정</button></div>' : '') +
-      (F.isNew ? '<div class="field"><div class="row" style="gap:6px"><input id="f-line" class="input" data-in="f-line" placeholder="한 줄로: 점심 김치찌개 9000 · 내일 병원 3만" autocomplete="off" style="flex:1"><button type="button" class="btn sm soft mic" data-act="dictate" data-for="f-line" aria-label="말로 입력">' + UI.ic('mic', 2.2) + '</button><button type="button" class="btn sm soft" data-act="f-smsopen" aria-label="카드 문자 붙여넣기">문자</button></div><div id="f-line-hint" class="t2" style="margin-top:4px"></div></div>' : '') +
+      (F.isNew ? '<div class="field"><div class="row" style="gap:6px"><input id="f-line" class="input" data-in="f-line" placeholder="한 줄로: 점심 9000" autocomplete="off" style="flex:1"><button type="button" class="btn sm soft mic" data-act="dictate" data-for="f-line" aria-label="말로 입력">' + UI.ic('mic', 2.2) + '</button><button type="button" class="btn sm soft" data-act="f-smsopen" aria-label="카드 문자 붙여넣기">문자</button></div><div id="f-line-hint" class="t2" style="margin-top:4px"></div></div>' : '') +
       '<div class="seg" id="f-types">' + [['expense', '지출'], ['income', '수입'], ['transfer', '이체'], ['budget', '예산']].map(function (t) { return '<button type="button" data-act="f-type" data-v="' + t[0] + '">' + t[1] + '</button>'; }).join('') + '</div>' +
       '<div class="field" style="margin-top:14px"><label id="f-amt-label">금액</label><div class="suffix-wrap"><input id="f-amount" class="input amount-in num" inputmode="numeric" data-in="f-amount" placeholder="0" autocomplete="off"><span class="suffix">원</span></div>' +
       '<div class="quick-amt"><button type="button" data-act="f-add" data-v="1000">+1천</button><button type="button" data-act="f-add" data-v="5000">+5천</button><button type="button" data-act="f-add" data-v="10000">+1만</button><button type="button" data-act="f-add" data-v="50000">+5만</button><button type="button" data-act="f-add" data-v="0">지움</button></div></div>' +
@@ -90,12 +90,12 @@
     $('#f-repeat-hint').textContent = F.repeat === '고정' && t === 'expense' ? '고정 지출은 예산금액에도 같은 값이 저장돼요(시트의 기존 방식).' : '';
     if (showCat) {
       var names = t === 'income' ? d.eff.incomes : d.eff.expenses, top = SM.topCats(d.idx, t === 'budget' ? 'expense' : t, 8);
-      $('#f-cat-chips').innerHTML = chips(uniq([F.category].concat(top)).slice(0, 9), F.category, 'category');
+      $('#f-cat-chips').innerHTML = chips((top.indexOf(F.category) >= 0 || !F.category ? top : [F.category].concat(top)).slice(0, 9), F.category, 'category');
       $('#f-cat').innerHTML = selectOpts(names, F.category, '항목 선택');
     }
     var accts = d.eff.accounts.map(function (a) { return a.name; });
-    if (showFrom) { $('#f-from-chips').innerHTML = chips(uniq([F.from].concat(SM.topAccts(d.idx, t, 'from', 6))).slice(0, 7), F.from, 'from'); $('#f-from').innerHTML = selectOpts(accts, F.from, '계정 선택'); }
-    if (showTo) { $('#f-to-chips').innerHTML = chips(uniq([F.to].concat(SM.topAccts(d.idx, t, 'to', 6))).slice(0, 7), F.to, 'to'); $('#f-to').innerHTML = selectOpts(accts, F.to, '계정 선택'); }
+    if (showFrom) { $('#f-from-chips').innerHTML = chips((function (l) { return l.indexOf(F.from) >= 0 || !F.from ? l : [F.from].concat(l); })(SM.topAccts(d.idx, t, 'from', 6)).slice(0, 7), F.from, 'from'); $('#f-from').innerHTML = selectOpts(accts, F.from, '계정 선택'); }
+    if (showTo) { $('#f-to-chips').innerHTML = chips((function (l) { return l.indexOf(F.to) >= 0 || !F.to ? l : [F.to].concat(l); })(SM.topAccts(d.idx, t, 'to', 6)).slice(0, 7), F.to, 'to'); $('#f-to').innerHTML = selectOpts(accts, F.to, '계정 선택'); }
     var am = $('#f-amount'); if (document.activeElement !== am) am.value = F.amount ? U.fmtInput(F.amount) : '';
     var us = $('#f-usage'); if (document.activeElement !== us) us.value = F.usage;
     var dt = $('#f-date'); if (dt.value !== F.date) dt.value = F.date;
@@ -144,12 +144,12 @@
   UI.inputs['f-line'] = function (el) {
     var g = UI.parseLine(el.value, U.today()), hint = $('#f-line-hint'), T = { expense: '지출', income: '수입', transfer: '이체', budget: '예산' };
     if (!el.value.trim()) { if (hint) hint.textContent = ''; return; }
-    if (g.type && g.type !== F.type) { F.type = g.type; }
+    if (g.type && g.type !== F.type) { F.type = g.type; F.category = ''; F.from = ''; F.to = ''; F.manual = { amount: F.manual.amount }; }
     if (g.amount != null) { F.amount = g.amount; F.manual.amount = true; }
-    if (g.date) F.date = g.date;
+    F.date = g.date || U.today(); // 날짜 말이 없어지면 오늘로
     F.usage = g.usage; autoFill(F.usage); defaultAccounts(); refresh();
     var us = $('#f-usage'); if (us) us.value = F.usage;
-    if (hint) hint.textContent = T[F.type] + ' · ' + U.num(F.amount || 0) + '원 · ' + F.date.slice(5).replace('-', '/') + (F.category ? ' · ' + F.category : '') + (F.from ? ' · ' + F.from : F.to ? ' · ' + F.to : '');
+    if (hint) hint.textContent = T[F.type] + ' · ' + U.num(F.amount || 0) + '원 · ' + F.date.slice(5).replace('-', '/') + (F.category ? ' · ' + F.category : '') + (F.type === 'income' ? (F.to ? ' · ' + F.to : '') : F.type === 'transfer' ? ' · ' + (F.from || '?') + ' → ' + (F.to || '?') : (F.from ? ' · ' + F.from : ''));
   };
   UI.actions['f-smsopen'] = function () { var m = $('#f-more'); if (m) { m.open = true; var t = $('#f-sms'); if (t) setTimeout(function () { t.focus(); t.scrollIntoView({ block: 'center' }); }, 50); } };
   UI.inputs['f-usage'] = function (el) { F.usage = el.value; autoFillQuiet(); suggest(); };

@@ -71,7 +71,7 @@
     if (!list.length) return '';
     var h = '<div class="card"><h3>카드 결제 일정</h3>';
     list.forEach(function (c) {
-      var due = c.due ? '<span class="chip ' + (c.dDay <= 3 ? 'near' : '') + '">D-' + c.dDay + ' · ' + c.due.slice(5).replace('-', '/') + '</span>' : '<button class="chip" data-act="go" data-tab="settings">결제일 설정</button>';
+      var due = c.due ? '<span class="chip ' + (c.dDay <= 3 ? 'near' : '') + '">D-' + c.dDay + ' · ' + c.due.slice(5).replace('-', '/') + '</span>' : '<button class="chip" data-act="go" data-tab="settings" data-open="mgr">결제일 설정</button>';
       var pay = c.payFrom ? '<span class="chip ' + (c.enough ? 'ok' : 'bad') + '">' + esc(c.payFrom) + (c.enough ? ' 잔액 충분' : ' 잔액 부족') + '</span>' : '<span class="faint tiny">결제계좌 미설정</span>';
       h += '<div class="fund-row"><div class="row between"><b>' + esc(c.name) + '</b><span class="num ' + (c.owed ? 'exp' : 'muted') + '">' + (c.owed ? won(c.owed) : '미결제 없음') + '</span></div>' +
         '<div class="row between wrap" style="margin-top:6px;gap:6px">' + due + pay + '</div></div>';

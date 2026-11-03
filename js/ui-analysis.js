@@ -104,7 +104,7 @@
       if (c3) Ch.line(c3, d.m12.labels, d.m12.values);
     }
   };
-  UI.actions.ana = function (el) { S.ana = el.dataset.v; UI.render(); document.getElementById('view').scrollTop = 0; };
+  UI.actions.ana = function (el) { S.ana = el.dataset.v; UI.render(); UI.scroller().scrollTop = 0; };
   UI.actions.smode = function (el) { S.statsMode = el.dataset.v; UI.render(); };
 
   /* ───── 정합성 점검 ───── */

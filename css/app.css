@@ -276,9 +276,6 @@ button:active, .li[data-act]:active, .arow:active { transform: scale(.96); }
 .btn.soft .ic2, .btn .ic2 { width: 16px; height: 16px; }
 .t1 { white-space: nowrap; overflow: hidden; }
 /* v3.0.1 — 화면 고정: 탭·＋가 스크롤에 움직이거나 가려지지 않게 */
-html, body { height: 100%; overflow: hidden; overscroll-behavior: none; }
-/* 앱 높이는 실제 화면 높이(JS가 --app-h로 넣음)로. 아이폰 홈 화면 앱에서 아래가 비는 현상 방지 */
-.app { position: fixed; top: 0; left: 0; right: 0; height: var(--app-h, 100%); margin: 0 auto; }
 .tabs { padding-bottom: max(var(--safe-b), 6px); }
 .top { position: relative; z-index: 20; }
 .view { overscroll-behavior: contain; min-height: 0; }
@@ -295,5 +292,48 @@ html, body { height: 100%; overflow: hidden; overscroll-behavior: none; }
 .cal button { justify-content: flex-start; }
 
 /* 3.0.5 — 홈 화면 앱 높이: 바탕까지 탭 색으로 (만약 남는 틈이 있어도 비어 보이지 않게) */
-html { background: var(--card); }
-body { background: var(--bg); min-height: 100%; }
+
+/* ===== 3.1.0 — 일반 웹앱 방식: 페이지가 스크롤되고, 위 막대는 붙고, 하단 탭은 화면 아래에 고정 =====
+   (화면 크기만 한 고정 틀 안에서 스크롤하면 아이폰 26 홈 화면 앱에서 아래 틈이 생김) */
+html, body { height: auto !important; min-height: 100%; overflow: visible !important; background: var(--bg) !important; }
+body { overscroll-behavior-y: none; }
+.app { position: static !important; height: auto !important; min-height: 100vh; display: block; background: var(--bg); }
+.top { position: sticky; top: 0; z-index: 20; }
+.view { overflow: visible !important; flex: none; min-height: calc(100vh - 140px); padding-bottom: calc(110px + var(--safe-b)) !important; }
+.tabs { position: fixed !important; left: 0; right: 0; bottom: 0; max-width: 560px; margin: 0 auto; z-index: 30; padding-bottom: max(var(--safe-b), 6px); touch-action: manipulation; }
+
+/* 가로 칩 줄: 눌러도 크기가 변하지 않게 (옆 칩 선택 방지) */
+.chips.scroll button:active, .chips.scroll .chip:active { transform: none; filter: brightness(.92); }
+.dict-tip { display: flex; flex-direction: column; gap: 2px; background: var(--brand-soft); color: var(--ink); border-radius: 12px; padding: 9px 12px; margin: 6px 0; font-size: .8rem; animation: vin .25s; }
+.dict-tip b { display: flex; align-items: center; gap: 6px; } .dict-tip span { color: var(--ink2); font-size: .74rem; }
+/* 3.1.0 위 막대: 왼쪽 여백(가운데 맞춤용) · 오른쪽 ⋯ 설정 */
+.topsp { width: 76px; flex: none; }
+.top .cbtn.on { background: var(--brand); color: var(--brand-ink); }
+/* 3.1.0 달력 */
+.calcard { padding: 10px 6px; }
+.cal button { aspect-ratio: auto; min-height: 66px; justify-content: flex-start; gap: 1px; border-radius: 10px; overflow: hidden; }
+.cal button.sel { background: var(--brand-soft); box-shadow: inset 0 0 0 1.5px var(--brand); }
+.cal .blu { color: var(--blue); }
+.cal .evl { display: block; width: 100%; font-size: .56rem; font-weight: 700; font-style: normal; line-height: 12px; white-space: nowrap; overflow: hidden; text-overflow: clip; padding: 0 2px; border-left: 2px solid currentColor; text-align: left; margin-top: 1px; }
+.cal .hn { font-size: .5rem; color: var(--expense); white-space: nowrap; overflow: hidden; max-width: 100%; line-height: 1.1; }
+.cal .mk em { font-size: .55rem; font-style: normal; color: var(--ink2); font-weight: 700; }
+.agenda { padding: 2px 14px; }
+.grp .r input.input { padding: 8px 10px; min-width: 0; }
+.topsp { display: none; }
+.top .month { justify-content: flex-start; min-width: 0; }
+.top .month b { min-width: 0; font-size: 1.05rem; white-space: nowrap; }
+.top .cbtn { width: 34px; height: 34px; }
+
+/* 3.1.1 — QA 수정 */
+.toolbar { top: calc(55px + var(--safe-t)) !important; margin-top: 0 !important; z-index: 15 !important; }
+html.sheet-open, html.sheet-open body { overflow: hidden !important; }
+.sheet { overscroll-behavior: contain; }
+.toast.up { bottom: auto !important; top: calc(var(--safe-t) + 12px); }
+.danger-t { color: var(--expense) !important; }
+.link { color: var(--brand); font-weight: 700; background: none; padding: 0; }
+.dict-tip { word-break: keep-all; }
+.cal .mk { height: auto; min-height: 6px; }
+.cal button { overflow: visible; }
+.chip.on { background: var(--brand); color: var(--brand-ink); }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .tile, :root:not([data-theme="light"]) .arow .dot, :root:not([data-theme="light"]) .st { color: #0E1412; } }
+:root[data-theme="dark"] .tile, :root[data-theme="dark"] .arow .dot, :root[data-theme="dark"] .st { color: #0E1412; }

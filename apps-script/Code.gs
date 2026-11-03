@@ -796,7 +796,7 @@ function sumarySnapshot_() {
  */
 const SIDE = {
   notes:  { head: ['날짜', '종류', '제목', '내용', '기분', '태그', '연결내역', '사진', '비밀'], keys: ['date', 'kind', 'title', 'body', 'mood', 'tags', 'link', 'photo', 'secret'] },
-  events: { head: ['시작', '끝', '하루종일', '제목', '장소', '반복', '사람', '예상비용', '연결내역', '색', '예산항목'], keys: ['start', 'end', 'allday', 'title', 'place', 'repeat', 'who', 'cost', 'link', 'color', 'category'] },
+  events: { head: ['시작', '끝', '하루종일', '제목', '장소', '반복', '사람', '예상비용', '연결내역', '색', '예산항목', '반복끝', '메모'], keys: ['start', 'end', 'allday', 'title', 'place', 'repeat', 'who', 'cost', 'link', 'color', 'category', 'until', 'memo'] },
   goals:  { head: ['이름', '목표금액', '목표일', '태그', '모은금액', '메모'], keys: ['name', 'target', 'due', 'tag', 'saved', 'memo'] }
 };
 const SIDE_META = ['id', 'updated', 'deleted', 'synced']; // updated = 고친 시각(누가 이기는지), synced = 서버에 들어온 시각(since 기준)
@@ -830,7 +830,7 @@ function side_(p) {
       puts.filter(function (x) { return x && x.t === t && x.row && x.row.id; }).forEach(function (x) {
         const r = x.row, ts = Math.min(Number(r.updated) || now, now + 60000), i = byId[r.id];
         if (i !== undefined && Number(vals[i][w - 3]) > ts) return; // 시트 쪽이 더 늦게 고쳐졌으면 시트 값 유지
-        const line = def.keys.map(function (k) { return cut_(r[k], k === 'body' ? 5000 : 300); }).concat([str_(r.id), ts, '', now]);
+        const line = def.keys.map(function (k) { return cut_(r[k], k === 'body' || k === 'memo' ? 5000 : 300); }).concat([str_(r.id), ts, '', now]);
         if (i === undefined) { byId[r.id] = vals.length; vals.push(line); } else vals[i] = line;
         changed = true;
       });

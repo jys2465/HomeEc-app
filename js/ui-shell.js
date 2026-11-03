@@ -19,6 +19,7 @@
     card: '<rect x="2.5" y="5" width="19" height="14" rx="3"/><path d="M2.5 10h19M6 15h4"/>',
     cash: '<rect x="2.5" y="6" width="19" height="12" rx="2"/><circle cx="12" cy="12" r="2.5"/>',
     up: '<path d="M12 19V5M6 11l6-6 6 6"/>', down: '<path d="M12 5v14M6 13l6 6 6-6"/>',
+    more: '<circle cx="5" cy="12" r="1.4" fill="currentColor"/><circle cx="12" cy="12" r="1.4" fill="currentColor"/><circle cx="19" cy="12" r="1.4" fill="currentColor"/>',
     chev: '<path d="M9 6l6 6-6 6"/>', left: '<path d="M15 6l-6 6 6 6"/>', right: '<path d="M9 6l6 6-6 6"/>',
     x: '<path d="M6 6l12 12M18 6L6 18"/>', check: '<path d="M5 12.5l4.5 4.5L19 7"/>', bell: '<path d="M6 16V11a6 6 0 0112 0v5l2 2H4z"/><path d="M10 20a2 2 0 004 0"/>',
     sync: '<path d="M20 12a8 8 0 01-14 5.3M4 12A8 8 0 0118 6.7"/><path d="M18 3v4h-4M6 21v-4h4"/>',
@@ -46,12 +47,13 @@
     else { cls = 'ok'; label = UI.relTime(st.last); }
     var n = H.activeCount();
     $('#top').innerHTML =
-      '<button class="avbtn" data-act="tab" data-tab="settings" aria-label="설정"><img src="' + AV + '" alt="" onerror="this.style.visibility=\'hidden\'"></button>' +
+      '<span class="topsp" aria-hidden="true"></span>' +
       '<div class="month"><button class="icon-btn" data-act="month" data-d="-1" aria-label="이전 달">' + UI.ic('left', 2.2) + '</button>' +
       '<b class="num" data-act="month-today" title="이번 달로">' + p.y + '년 ' + p.m + '월</b>' +
       '<button class="icon-btn" data-act="month" data-d="1" aria-label="다음 달">' + UI.ic('right', 2.2) + '</button></div>' +
       '<button class="cbtn" data-act="hist" aria-label="최근 변경 ' + n + '건">' + UI.ic('history') + (n ? '<span class="bd num">' + n + '</span>' : '') + '</button>' +
-      '<button class="cbtn sdot ' + cls + '" data-act="sync" aria-label="동기화 · ' + esc(label) + '">' + UI.ic('sync') + '</button>';
+      '<button class="cbtn sdot ' + cls + '" data-act="sync" aria-label="동기화 · ' + esc(label) + '">' + UI.ic('sync') + '</button>' +
+      '<button class="cbtn' + (UI.S.tab === 'settings' ? ' on' : '') + '" data-act="tab" data-tab="settings" aria-label="설정">' + UI.ic('more', 2.6) + '</button>';
   };
 
   /* ───── 아래 탭 (가운데 ＋) ───── */
@@ -142,7 +144,7 @@
     if (root.matchMedia && root.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
     document.querySelectorAll('#view .countup').forEach(function (el) {
       var to = +el.dataset.to, st = null; if (!isFinite(to) || el.dataset.done) return; el.dataset.done = '1';
-      function f(t) { if (!st) st = t; var k = Math.min(1, (t - st) / 700); el.textContent = U.num(to * (1 - Math.pow(1 - k, 3))); if (k < 1) requestAnimationFrame(f); else { el.classList.remove('pop'); void el.offsetWidth; el.classList.add('pop'); } }
+      function f(t) { if (!st) st = t; var k = Math.min(1, (t - st) / 700); el.textContent = U.num(to * (1 - Math.pow(1 - k, 3))); if (k < 1) requestAnimationFrame(f); else { el.classList.remove('pop'); void el.offsetWidth; el.classList.add('pop'); fitAll(); } }
       requestAnimationFrame(f);
     });
   };
@@ -152,6 +154,7 @@
     var b = e.target.closest('button, .li[data-act], .arow'); if (!b) return;
     var r = b.getBoundingClientRect(), s = Math.max(r.width, r.height) * 2, x = document.createElement('i');
     x.className = 'rip'; x.style.width = x.style.height = s + 'px'; x.style.left = (e.clientX - r.left - s / 2) + 'px'; x.style.top = (e.clientY - r.top - s / 2) + 'px';
+    if (b.closest('.chips.scroll')) return; // 가로 칩 줄은 물결 없이 눌림만
     if (getComputedStyle(b).position === 'static') b.style.position = 'relative';
     b.classList.add('rip-host'); b.appendChild(x); setTimeout(function () { x.remove(); }, 520);
     try { if (navigator.vibrate) navigator.vibrate(8); } catch (err) { /* 무시 */ }
@@ -161,6 +164,7 @@
   var FIT = '.t1,.t2,.k,.big,.pill,.chip,.btn,.sh b,.sec,.mini3 .v,.arow b,.grp .t,.grp .v,.top .month b,.qk span,.hint.one,#toast span';
   function fitAll(rootEl) {
     (rootEl || document).querySelectorAll(FIT).forEach(function (el) {
+      if (el.closest('.chips.scroll') || el.closest('.cal')) return; // 가로로 밀리는 칩 줄·달력 칸은 건드리지 않음
       el.style.fontSize = ''; var w = el.clientWidth; if (!w) return; var sw = el.scrollWidth; if (sw <= w + 1) return;
       el.style.fontSize = (parseFloat(getComputedStyle(el).fontSize) * Math.max(0.62, w / sw)) + 'px';
     });
@@ -168,25 +172,13 @@
   UI.fitAll = fitAll;
   var fq = 0;
   function watch() {
-    var mo = new MutationObserver(function () { cancelAnimationFrame(fq); fq = requestAnimationFrame(function () { fitAll(); }); });
+    // 물결(.rip)이 붙고 떨어지는 것은 무시: 누르는 순간 글자 크기가 다시 계산되면 칩이 밀려 옆 칩이 눌림
+    var onlyRip = function (m) { var n = [].concat([].slice.call(m.addedNodes), [].slice.call(m.removedNodes)); return n.length && n.every(function (x) { return x.nodeType === 1 && x.classList && x.classList.contains('rip'); }); };
+    var mo = new MutationObserver(function (list) { if (list.every(onlyRip)) return; cancelAnimationFrame(fq); fq = requestAnimationFrame(function () { fitAll(); }); });
     ['#view', '#layer', '#top', '#toast'].forEach(function (s) { var el = $(s); if (el) mo.observe(el, { childList: true, subtree: true }); });
     root.addEventListener('resize', function () { fitAll(); });
   }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', watch); else watch();
   document.documentElement.classList.toggle('priv', UI.hidden());
-  /* 화면 높이 맞추기: 아이폰 홈 화면 앱은 CSS 높이 계산이 실제 화면과 어긋날 때가 있어 직접 잼 */
-  function fitHeight() {
-    var h = root.innerHeight;
-    // 아이폰 홈 화면 앱(standalone): innerHeight가 상태 막대 높이만큼 작게 나오는 경우가 있어 실제 화면 높이를 씀
-    if (navigator.standalone === true || (root.matchMedia && root.matchMedia('(display-mode: standalone)').matches)) {
-      var portrait = !root.matchMedia || root.matchMedia('(orientation: portrait)').matches;
-      var full = portrait ? Math.max(screen.height, screen.width) : Math.min(screen.height, screen.width);
-      var typing = document.activeElement && document.activeElement.matches && document.activeElement.matches('input,textarea,select');
-      if (!typing && full > h) h = full;
-    }
-    document.documentElement.style.setProperty('--app-h', h + 'px');
-  }
-  fitHeight(); root.addEventListener('resize', fitHeight); root.addEventListener('orientationchange', function () { setTimeout(fitHeight, 300); });
-  document.addEventListener('visibilitychange', function () { if (!document.hidden) setTimeout(fitHeight, 50); });
-  document.addEventListener('focusout', function () { setTimeout(fitHeight, 120); });
+
 })(typeof window !== 'undefined' ? window : globalThis);

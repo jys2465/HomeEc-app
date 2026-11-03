@@ -1,4 +1,4 @@
-/* 내 하루장 — 달력 · 노트(일기·아이디어·메모) · 일정 · 저금통 화면과 입력 시트 */
+/* 내 하루장 — 달력 · 노트 · 일정 · 저금통 화면과 입력 시트 */
 (function (root) {
   'use strict';
   var AB = root.AB, U = AB.util, C = AB.calc, St = AB.store, UI = AB.ui, X = AB.side;
@@ -30,45 +30,81 @@
   /* ───── 말로 쓰기: 브라우저 음성 인식 → 안 되면 아이폰 키보드 받아쓰기 안내 ───── */
   var rec = null, recBtn = null;
   function stopRec() { try { if (rec) rec.stop(); } catch (e) { /* 무시 */ } rec = null; if (recBtn) recBtn.classList.remove('rec'); recBtn = null; }
+  var IOS = /iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  function keyboardHelp(target) {
+    target.focus();
+    var tip = document.getElementById('dict-tip');
+    if (!tip) { tip = document.createElement('div'); tip.id = 'dict-tip'; tip.className = 'dict-tip'; }
+    tip.innerHTML = '<b>' + UI.ic('mic', 2.2) + ' 키보드의 🎤를 누르고 말하세요</b><span>키보드 왼쪽 아래(또는 스페이스 옆) 마이크 · 안 보이면 아이폰 설정 › 일반 › 키보드 › 받아쓰기 켜기</span>';
+    var anchor = (target.parentNode && target.parentNode.classList.contains('row')) ? target.parentNode : target;
+    anchor.parentNode.insertBefore(tip, anchor.nextSibling);
+    clearTimeout(tip._t); tip._t = setTimeout(function () { if (tip.parentNode) tip.parentNode.removeChild(tip); }, 9000);
+  }
   UI.dictate = function (btn, target) {
     if (rec) { stopRec(); return; }
     var SR = root.SpeechRecognition || root.webkitSpeechRecognition;
-    var fallback = function () { target.focus(); UI.toast('키보드의 🎤 단추를 누르고 말하세요', { ms: 4500 }); };
-    if (!SR) return fallback();
+    // 아이폰은 홈 화면 앱에서 브라우저 음성 인식이 막히거나 조용히 실패해서, 확실히 되는 키보드 받아쓰기로 안내
+    if (IOS || !SR) return keyboardHelp(target);
+    var fallback = function () { keyboardHelp(target); };
     try {
       rec = new SR(); rec.lang = 'ko-KR'; rec.interimResults = true; rec.continuous = true;
-      var base = target.value, sep = base && !/\s$/.test(base) ? ' ' : '';
-      rec.onresult = function (e) { var fin = '', tmp = ''; for (var i = 0; i < e.results.length; i++) { if (e.results[i].isFinal) fin += e.results[i][0].transcript; else tmp += e.results[i][0].transcript; } target.value = base + sep + fin + tmp; target.dispatchEvent(new Event('input', { bubbles: true })); };
-      rec.onerror = function (e) { var no = e && (e.error === 'not-allowed' || e.error === 'service-not-allowed'); stopRec(); if (no) fallback(); };
-      rec.onend = function () { stopRec(); };
+      var base = target.value, sep = base && !/\s$/.test(base) ? ' ' : '', got = false;
+      var dog = setTimeout(function () { if (!got) { stopRec(); fallback(); } }, 7000);
+      rec.onresult = function (e) { got = true; var fin = '', tmp = ''; for (var i = 0; i < e.results.length; i++) { if (e.results[i].isFinal) fin += e.results[i][0].transcript; else tmp += e.results[i][0].transcript; } target.value = base + sep + fin + tmp; target.dispatchEvent(new Event('input', { bubbles: true })); };
+      rec.onerror = function () { clearTimeout(dog); stopRec(); if (!got) fallback(); };
+      rec.onend = function () { clearTimeout(dog); stopRec(); };
       rec.start(); recBtn = btn; btn.classList.add('rec'); UI.toast('듣고 있어요 · 다시 누르면 멈춰요', { ms: 3000 });
     } catch (err) { stopRec(); fallback(); }
   };
   UI.actions.dictate = function (el) { var t = document.getElementById(el.dataset.for); if (t) UI.dictate(el, t); };
 
-  /* ───── 달력 ───── */
+  /* ───── 달력: 칸마다 일정 제목, 날짜를 누르면 아래에 그날 일정·내역·노트 (다시 누르면 새 일정) ───── */
+  S.calSel = '';
+  function agenda(ds, d) {
+    var rows = C.sortRows(d.rows.filter(function (r) { return r.date === ds && r.type !== 'budget'; })), evs = X.eventsIn(ds, ds), notes = X.list('notes').filter(function (n) { return n.date === ds; }), hn = U.holidayName(ds);
+    var h = '<div class="sec row between"><span>' + md(ds) + (hn ? ' · <span class="exp">' + esc(hn) + '</span>' : '') + '</span><span class="k num">지출 ' + U.num(dayExp(d.rows, ds)) + '원</span></div><div class="card agenda">';
+    evs.forEach(function (e) {
+      var tm = e.span ? (+e.span[0].slice(5, 7)) + '/' + (+e.span[0].slice(8)) + '~' + (+e.span[1].slice(5, 7)) + '/' + (+e.span[1].slice(8)) : (e.time ? e.time + (e.endTime ? '~' + e.endTime : '') : '하루 종일');
+      h += '<div class="li" data-act="ev-edit" data-id="' + esc(e.ev.id) + '"><div class="ic" style="background:' + (e.ev.color || 'var(--plan)') + ';color:#fff">' + UI.ic('cal', 2) + '</div><div class="main"><div class="t1">' + esc(e.ev.title || '일정') + '</div><div class="t2">' + esc(tm) + (e.ev.place ? ' · ' + esc(e.ev.place) : '') + (e.ev.who ? ' · ' + esc(e.ev.who) : '') + (e.ev.repeat ? ' · ' + esc(e.ev.repeat) : '') + '</div></div><div class="amt num">' + (e.ev.cost ? U.num(e.ev.cost) : '') + '</div></div>';
+    });
+    rows.forEach(function (r) { h += UI.row(r, d.today); });
+    notes.forEach(function (n) { h += '<div class="li" data-act="note-edit" data-id="' + esc(n.id) + '"><div class="ic" style="background:var(--note);color:#fff">' + UI.ic('note', 2) + '</div><div class="main"><div class="t1">' + (n.mood ? n.mood + ' ' : '') + esc(n.secret == 1 ? '비밀 노트' : (n.title || n.body || '').slice(0, 30)) + '</div><div class="t2">노트' + (n.tags ? ' · ' + esc(n.tags) : '') + '</div></div></div>'; });
+    if (!evs.length && !rows.length && !notes.length) h += '<div class="empty" style="padding:12px"><b>이 날 기록이 없어요</b></div>';
+    return h + '</div><div class="row" style="gap:8px"><button class="btn grow" data-act="ev-new" data-d="' + ds + '">' + UI.ic('cal', 2) + '일정</button><button class="btn soft grow" data-act="day-add" data-d="' + ds + '">' + UI.ic('coin', 2) + '내역</button><button class="btn soft grow" data-act="note-new" data-d="' + ds + '">' + UI.ic('note', 2) + '노트</button></div>';
+  }
   UI.views.cal = {
     render: function () {
       var d = UI.derive(), r = d.range, p = U.parse(r.start), first = U.weekday(r.start), dn = U.daysInMonth(p.y, p.m);
+      if (!S.calSel || S.calSel < r.start || S.calSel > r.end) S.calSel = d.today >= r.start && d.today <= r.end ? d.today : r.start;
       var evs = X.eventsIn(r.start, r.end), byEv = {}, bars = {}, byNote = {};
       evs.forEach(function (e) { if (e.span) (bars[e.date] = bars[e.date] || []).push(e); else (byEv[e.date] = byEv[e.date] || []).push(e); });
       X.list('notes').forEach(function (n) { if (n.date >= r.start && n.date <= r.end) byNote[n.date] = true; });
       var pay = {}; d.cards.forEach(function (c) { if (c.due && c.owed) pay[c.due] = true; });
-      var inc = {}; d.rows.forEach(function (x) { if (x.type === 'income' && x.date >= r.start && x.date <= r.end) inc[x.date] = true; });
-      var h = '<div class="card" style="padding:10px 6px"><div class="cal">' + WD.map(function (w, i) { return '<div class="h ' + (i === 0 ? 'exp' : '') + '">' + w + '</div>'; }).join('');
+      var h = '<div class="card calcard" id="calcard"><div class="row between" style="padding:0 6px 6px"><b class="t1">' + p.y + '년 ' + p.m + '월</b><div class="row" style="gap:6px"><button class="btn soft sm" data-act="cal-today">오늘</button><button class="btn sm" data-act="ev-new" data-d="' + S.calSel + '">' + UI.ic('plus', 2.4) + '일정</button></div></div><div class="cal">' + WD.map(function (w, i) { return '<div class="h ' + (i === 0 ? 'exp' : i === 6 ? 'blu' : '') + '">' + w + '</div>'; }).join('');
       for (var i = 0; i < first; i++) h += '<div></div>';
       for (var day = 1; day <= dn; day++) {
-        var ds = U.ymd(p.y, p.m, day), e = dayExp(d.rows, ds), off = U.isOffDay(ds), hn = U.holidayName(ds);
-        h += '<button data-act="day-open" data-d="' + ds + '" class="' + (ds === d.today ? 'today' : '') + '" aria-label="' + md(ds) + (hn ? ' ' + hn : '') + '"><span class="d num ' + (off && ds !== d.today ? 'exp' : '') + '">' + day + '</span><span class="bars">' + (bars[ds] || []).slice(0, 2).map(function (b) { var w = U.weekday(ds), st = b.date === b.span[0] || w === 0, en = b.date === b.span[1] || w === 6; return '<i class="bar' + (st ? ' s' : '') + (en ? ' e' : '') + '" style="background:' + (b.ev.color || 'var(--plan)') + '">' + (st ? esc(b.ev.title || '') : '') + '</i>'; }).join('') + '</span><span class="m num">' + (e ? (e >= 10000 ? (Math.round(e / 1000) / 10) + '만' : U.num(e)) : '') + '</span><span class="mk">' +
-          (byEv[ds] ? '<i style="background:var(--plan)"></i>' : '') + (pay[ds] ? '<i style="background:var(--warn)"></i>' : '') + (inc[ds] ? '<i style="background:var(--income)"></i>' : '') + (byNote[ds] ? '<i style="background:var(--note)"></i>' : '') + '</span></button>';
+        var ds = U.ymd(p.y, p.m, day), e = dayExp(d.rows, ds), wd = U.weekday(ds), hn = U.holidayName(ds), list = byEv[ds] || [];
+        var cls = (ds === d.today ? ' today' : '') + (ds === S.calSel ? ' sel' : '');
+        h += '<button data-act="cal-pick" data-d="' + ds + '" class="' + cls + '" aria-label="' + md(ds) + (hn ? ' ' + hn : '') + (list.length ? ' 일정 ' + list.length + '개' : '') + '"><span class="d num ' + (wd === 0 || hn ? 'exp' : wd === 6 ? 'blu' : '') + '">' + day + '</span>' +
+          '<span class="bars">' + (bars[ds] || []).slice(0, 2).map(function (b) { var st = b.date === b.span[0] || wd === 0, en = b.date === b.span[1] || wd === 6; return '<i class="bar' + (st ? ' s' : '') + (en ? ' e' : '') + '" style="background:' + (b.ev.color || 'var(--plan)') + '">' + (st ? esc(b.ev.title || '') : '') + '</i>'; }).join('') +
+          list.slice(0, 2 - Math.min(2, (bars[ds] || []).length)).map(function (x) { return '<i class="evl" style="color:' + (x.ev.color || 'var(--plan)') + '">' + esc(x.ev.title || '일정') + '</i>'; }).join('') + '</span>' +
+          (hn ? '<span class="hn">' + esc(hn) + '</span>' : '') +
+          '<span class="m num">' + (e ? (e >= 10000 ? (Math.round(e / 1000) / 10) + '만' : U.num(e)) : '') + '</span><span class="mk">' + (list.length > 2 ? '<em>+' + (list.length - 2) + '</em>' : '') + (pay[ds] ? '<i style="background:var(--warn)"></i>' : '') + (byNote[ds] ? '<i style="background:var(--note)"></i>' : '') + '</span></button>';
       }
-      h += '</div><div class="calleg">' + [['var(--plan)', '일정'], ['var(--warn)', '결제'], ['var(--income)', '입금'], ['var(--note)', '일기']].map(function (l) { return '<span><i style="background:' + l[0] + '"></i>' + l[1] + '</span>'; }).join('') + '</div></div>';
-      var up = evs.filter(function (e) { return e.date >= d.today; }).slice(0, 6);
-      h += '<div class="sec row between"><span>다가오는 일정</span><button class="link" data-act="ev-new">＋ 일정</button></div><div class="grp">' +
-        (up.length ? up.filter(function (e) { return !e.span || e.date === e.span[0] || e.date === d.today; }).map(function (e) { var q = U.parse(e.date); return '<button class="r" data-act="ev-edit" data-id="' + esc(e.ev.id) + '"><span class="st num" style="background:' + (e.ev.color || 'var(--plan)') + ';font-weight:800;font-size:.8rem">' + q.d + '</span><span class="t">' + esc(e.ev.title || '일정') + '</span><span class="v">' + (e.span ? +e.span[0].slice(8) + '~' + +e.span[1].slice(8) + '일' : (e.time ? e.time : '')) + (e.ev.cost ? ' · ' + U.num(e.ev.cost) + '원' : '') + '</span>' + UI.CHEV + '</button>'; }).join('') : '<div class="r"><span class="t k">이 달 남은 일정이 없어요</span></div>') + '</div>';
+      h += '</div><div class="calleg"><span><i style="background:var(--warn)"></i>카드 결제</span><span><i style="background:var(--note)"></i>노트</span><span class="k">옆으로 밀면 다른 달</span></div></div>';
+      h += agenda(S.calSel, d);
+      var up = evs.filter(function (e) { return e.date > S.calSel && (!e.span || e.date === e.span[0]); }).slice(0, 5);
+      if (up.length) h += '<div class="sec">다가오는 일정</div><div class="grp">' + up.map(function (e) { var q = U.parse(e.date); return '<button class="r" data-act="ev-edit" data-id="' + esc(e.ev.id) + '"><span class="st num" style="background:' + (e.ev.color || 'var(--plan)') + ';font-weight:800;font-size:.8rem">' + q.d + '</span><span class="t">' + esc(e.ev.title || '일정') + '</span><span class="v">' + WD[U.weekday(e.date)] + (e.time ? ' ' + e.time : '') + (e.ev.cost ? ' · ' + U.num(e.ev.cost) : '') + '</span>' + UI.CHEV + '</button>'; }).join('') + '</div>';
       return h;
+    },
+    after: function () {
+      var c = document.getElementById('calcard'); if (!c) return; var sx = null, sy = 0;
+      c.addEventListener('touchstart', function (e) { sx = e.touches[0].clientX; sy = e.touches[0].clientY; }, { passive: true });
+      c.addEventListener('touchend', function (e) { if (sx == null) return; var dx = e.changedTouches[0].clientX - sx, dy = e.changedTouches[0].clientY - sy; sx = null; if (Math.abs(dx) > 60 && Math.abs(dx) > Math.abs(dy) * 1.5) { S.month = U.shiftMonth(S.month, dx < 0 ? 1 : -1); S.calSel = ''; UI.render(); } });
     }
   };
+  UI.actions['cal-pick'] = function (el) { if (S.calSel === el.dataset.d) { evSheet({ start: el.dataset.d + ' 10:00' }); return; } S.calSel = el.dataset.d; UI.render(); };
+  UI.actions['cal-today'] = function () { var t = U.today(); S.month = t.slice(0, 7); S.calSel = t; UI.render(); };
   UI.actions['day-open'] = function (el) { dayOpen(el.dataset.d); };
   function dayOpen(ds) {
     var d = UI.derive(), rows = C.sortRows(d.rows.filter(function (r) { return r.date === ds && r.type !== 'budget'; })), evs = X.eventsIn(ds, ds), notes = X.list('notes').filter(function (n) { return n.date === ds; }), hn = U.holidayName(ds);
@@ -78,7 +114,7 @@
     rows.forEach(function (r) { h += UI.row(r, d.today); });
     notes.forEach(function (n) { h += '<div class="li" data-act="note-edit" data-id="' + esc(n.id) + '"><div class="ic" style="background:' + (KIND[n.kind] || 'var(--note)') + ';color:#fff">' + UI.ic('note', 2) + '</div><div class="main"><div class="t1">' + (n.mood ? n.mood + ' ' : '') + esc(n.secret == 1 ? '비밀 노트' : (n.title || n.body || '').slice(0, 30)) + '</div><div class="t2">노트' + (n.tags ? ' · ' + esc(n.tags) : '') + '</div></div></div>'; });
     if (!evs.length && !rows.length && !notes.length) h += '<div class="empty" style="padding:14px"><b>이 날 기록이 없어요</b></div>';
-    h += '</div><div class="row" style="gap:8px"><button class="btn soft grow" data-act="day-add" data-d="' + ds + '">' + UI.ic('coin', 2) + '내역</button><button class="btn soft grow" data-act="note-new" data-d="' + ds + '">' + UI.ic('note', 2) + '일기</button><button class="btn soft grow" data-act="ev-new" data-d="' + ds + '">' + UI.ic('cal', 2) + '일정</button></div>';
+    h += '</div><div class="row" style="gap:8px"><button class="btn soft grow" data-act="day-add" data-d="' + ds + '">' + UI.ic('coin', 2) + '내역</button><button class="btn soft grow" data-act="note-new" data-d="' + ds + '">' + UI.ic('note', 2) + '노트</button><button class="btn soft grow" data-act="ev-new" data-d="' + ds + '">' + UI.ic('cal', 2) + '일정</button></div>';
     UI.sheet(h);
   }
   UI.dayOpen = dayOpen;
@@ -106,10 +142,10 @@
         if (ev.length) h += '<div class="sec">일정 ' + ev.length + '건</div><div class="grp">' + ev.map(function (e) { return '<button class="r" data-act="ev-edit" data-id="' + esc(e.id) + '"><span class="st" style="background:var(--plan)">' + UI.ic('cal', 2) + '</span><span class="t">' + esc(e.title) + '</span><span class="v">' + esc(String(e.start).slice(5, 10)) + '</span></button>'; }).join('') + '</div>';
         h += '<div class="sec">노트 ' + list.length + '건</div>';
       }
-      if (!list.length && !q) return h + '<div class="card"><div class="empty"><b>첫 노트를 써 보세요</b>일기든 아이디어든 메모든 한 곳에. 쓴 날의 지출이 함께 붙어요.</div></div>';
+      if (!list.length && !q) return h + '<div class="card"><div class="empty"><b>첫 노트를 써 보세요</b>쓴 날의 지출이 함께 붙어요.</div></div>';
       return h + list.slice(0, 80).map(function (n) {
         var e = dayExp(d.rows, n.date), sec = n.secret == 1;
-        return '<button class="nt" data-act="note-edit" data-id="' + esc(n.id) + '" style="border-left-color:' + (KIND[n.kind] || 'var(--note)') + '"><div class="row between"><div class="t1 grow">' + (n.mood ? n.mood + ' ' : '') + esc(sec ? '비밀 노트' : (n.title || String(n.body || '').slice(0, 30) || '제목 없음')) + '</div><span class="k num" style="flex:none">' + n.date.slice(5).replace('-', '.') + '</span></div>' + (sec ? '' : '<div class="t2">' + esc(String(n.body || '').replace(/\n/g, ' ').slice(0, 60)) + '</div>') +
+        return '<button class="nt" data-act="note-edit" data-id="' + esc(n.id) + '" style="border-left-color:' + (KIND[n.kind] || 'var(--note)') + '"><div class="row between"><div class="t1 grow">' + (n.mood ? n.mood + ' ' : '') + esc(sec ? '비밀 노트' : (n.title || String(n.body || '').slice(0, 30) || '제목 없음')) + '</div><span class="k num" style="flex:none">' + n.date.slice(5).replace('-', '.') + '</span></div>' + (sec || !n.title ? '' : '<div class="t2">' + esc(String(n.body || '').replace(/\n/g, ' ').slice(0, 60)) + '</div>') +
           '<div class="t2">' + (n.tags ? esc(n.tags) + ' · ' : '') + '그날 지출 ' + U.num(e) + '원' + '</div></button>';
       }).join('');
     }
@@ -119,12 +155,12 @@
 
   var N = null;
   function noteSheet(n) {
-    N = Object.assign({ date: U.today(), kind: '일기', title: '', body: '', mood: '', tags: '', secret: 0 }, n || {});
+    N = Object.assign({ date: U.today(), kind: '노트', title: '', body: '', mood: '', tags: '', secret: 0 }, n || {});
     var d = UI.derive(), e = dayExp(d.rows, N.date);
     UI.sheet('<div class="sh"><b>' + (N.id ? '노트 수정' : '새 노트') + '</b>' + x() + '</div>' +
       '<div class="row" style="gap:8px;margin-bottom:8px"><input id="n-date" type="date" class="input" value="' + N.date + '" style="flex:1"><div class="seg2" style="flex:1.4">' + MOOD.map(function (m) { return '<button class="' + (N.mood === m ? 'on' : '') + '" data-act="n-mood" data-v="' + m + '" aria-label="기분 ' + m + '">' + m + '</button>'; }).join('') + '</div></div>' +
       '<input id="n-title" class="input" placeholder="제목 (없어도 돼요)" value="' + esc(N.title) + '" style="margin-bottom:8px">' +
-      '<div class="row between" style="margin-bottom:4px"><span class="k">내용</span><button class="btn soft sm mic" data-act="dictate" data-for="n-body" aria-label="말로 쓰기">' + UI.ic('mic', 2.2) + '말로 쓰기</button></div><textarea id="n-body" class="input textarea" rows="6" placeholder="일기 · 아이디어 · 메모, 무엇이든">' + esc(N.body) + '</textarea>' +
+      '<div class="row between" style="margin-bottom:4px"><span class="k">내용</span><button class="btn soft sm mic" data-act="dictate" data-for="n-body" aria-label="말로 쓰기">' + UI.ic('mic', 2.2) + '말로 쓰기</button></div><textarea id="n-body" class="input textarea" rows="6" placeholder="오늘 있었던 일, 떠오른 생각">' + esc(N.body) + '</textarea>' +
       '<div class="row" style="gap:8px;margin-top:8px"><input id="n-tags" class="input" placeholder="#가족 #건강" value="' + esc(N.tags) + '" style="flex:1">' + '</div>' +
       '<div class="grp" style="margin-top:10px"><div class="r"><span class="st" style="background:var(--ink2)">' + UI.ic('eye', 2) + '</span><span class="t">비밀 (목록에서 내용 가리기)</span><button class="sw" data-act="n-secret" role="switch" aria-checked="' + (N.secret == 1) + '" aria-label="비밀"><i></i></button></div>' +
       '<div class="r"><span class="st" style="background:var(--expense)">' + UI.ic('coin', 2) + '</span><span class="t">이 날 지출</span><span class="v num">' + U.num(e) + '원</span></div></div>' +
@@ -154,43 +190,65 @@
 
   /* ───── 일정 (예상 비용 → 그 날 예산 행으로 함께 저장) ───── */
   var E = null, E0 = null;
+  var TPL = [['생일', '매년', 1, '#C0412F'], ['기념일', '매년', 1, '#B8862B'], ['병원', '', 0, '#2F6FA3'], ['모임', '', 0, '#6B4FA3'], ['여행', '', 1, '#2E7D46'], ['경조사', '', 1, '#A0703A'], ['면회', '', 0, '#2F6FA3']];
   function evSheet(e) {
     E0 = e && e.id ? JSON.parse(JSON.stringify(e)) : null;
-    E = Object.assign({ start: U.today() + ' 10:00', end: '', allday: 0, title: '', place: '', repeat: '', who: '', cost: 0, link: '', color: EVC[0], category: '일정' }, e || {});
-    var dd = String(E.start).slice(0, 10), tt = String(E.start).slice(11, 16) || '10:00', ed = String(E.end || '').slice(0, 10) || dd, cats = ['일정'].concat(UI.derive().eff.expenses.filter(function (c) { return c !== '일정'; }));
+    E = Object.assign({ start: U.today() + ' 10:00', end: '', allday: 0, title: '', place: '', repeat: '', until: '', who: '', cost: 0, link: '', color: EVC[0], category: '일정', memo: '' }, e || {});
+    var dd = String(E.start).slice(0, 10), tt = String(E.start).slice(11, 16) || '10:00', ed = E.allday == 1 ? (String(E.end || '').slice(0, 10) || dd) : dd, et = E.allday == 1 ? '' : String(E.end || '').slice(11, 16);
+    var cats = ['일정'].concat(UI.derive().eff.expenses.filter(function (c) { return c !== '일정'; }));
+    var whos = {}; X.list('events').forEach(function (v) { String(v.who || '').split(/[,·]/).forEach(function (w) { w = w.trim(); if (w) whos[w] = (whos[w] || 0) + 1; }); });
+    var whoList = Object.keys(whos).sort(function (a, b) { return whos[b] - whos[a]; }).slice(0, 6);
     UI.sheet('<div class="sh"><b>' + (E.id ? '일정 수정' : '새 일정') + '</b>' + x() + '</div>' +
-      '<input id="e-title" class="input" placeholder="예: 결혼기념일 저녁" value="' + esc(E.title) + '" style="margin-bottom:8px">' +
-      '<div class="row" style="gap:8px;margin-bottom:8px"><input id="e-date" type="date" class="input" value="' + dd + '" style="flex:1.3" aria-label="시작일"><input id="e-time" type="time" class="input" value="' + tt + '" style="flex:1"' + (E.allday == 1 ? ' hidden' : '') + '><span id="e-end-wrap" class="row" style="gap:4px;flex:1.5"' + (E.allday == 1 ? '' : ' hidden') + '><span class="k">~</span><input id="e-end" type="date" class="input" value="' + ed + '" aria-label="종료일"></span></div>' +
-      '<div class="row" style="gap:8px;margin-bottom:10px" id="e-cols"><span class="k">색</span>' + EVC.map(function (c) { return '<button type="button" class="swatch' + (E.color === c ? ' on' : '') + '" data-act="e-col" data-v="' + c + '" style="background:' + c + '" aria-label="색 고르기"></button>'; }).join('') + '</div>' +
-      '<div class="grp"><div class="r"><span class="st" style="background:var(--plan)">' + UI.ic('cal', 2) + '</span><span class="t">하루 종일</span><button class="sw" data-act="e-allday" role="switch" aria-checked="' + (E.allday == 1) + '" aria-label="하루 종일"><i></i></button></div>' +
-      '<div class="r"><span class="st" style="background:var(--blue)">' + UI.ic('history', 2) + '</span><span class="t">반복</span><div class="seg2" style="width:190px">' + [['', '없음'], ['매주', '매주'], ['매월', '매월'], ['매년', '매년']].map(function (r) { return '<button class="' + (E.repeat === r[0] ? 'on' : '') + '" data-act="e-rep" data-v="' + r[0] + '">' + r[1] + '</button>'; }).join('') + '</div></div></div>' +
-      '<div class="row" style="gap:8px;margin-bottom:8px"><input id="e-place" class="input" placeholder="장소" value="' + esc(E.place) + '" style="flex:1"><input id="e-who" class="input" placeholder="누구와 (예: 가족)" value="' + esc(E.who) + '" style="flex:1"></div>' +
-      '<div class="field"><label>예상 비용 <span class="faint">(시작일 예산에 반영)</span></label><div class="row" style="gap:8px"><div class="suffix-wrap" style="flex:1"><input id="e-cost" class="input num" inputmode="numeric" placeholder="0" value="' + (E.cost ? U.fmtInput(E.cost) : '') + '" data-in="e-cost"><span class="suffix">원</span></div><select id="e-cat" class="select" style="flex:1" aria-label="예산 항목">' + cats.map(function (c) { return '<option' + (c === (E.category || '일정') ? ' selected' : '') + '>' + esc(c) + '</option>'; }).join('') + '</select></div></div>' +
+      '<input id="e-title" class="input" placeholder="무슨 일정인가요? (예: 결혼기념일 저녁)" value="' + esc(E.title) + '" style="margin-bottom:6px">' +
+      (E.id ? '' : '<div class="chips scroll" style="margin-bottom:8px">' + TPL.map(function (t, k) { return '<button type="button" class="chip" data-act="e-tpl" data-k="' + k + '">' + t[0] + '</button>'; }).join('') + '</div>') +
+      '<div class="grp">' +
+        '<div class="r"><span class="st" style="background:var(--plan)">' + UI.ic('cal', 2) + '</span><span class="t">하루 종일 · 기간</span><button class="sw" data-act="e-allday" role="switch" aria-checked="' + (E.allday == 1) + '" aria-label="하루 종일"><i></i></button></div>' +
+        '<div class="r"><span class="k" style="width:30px;text-align:center">시작</span><input id="e-date" type="date" class="input grow" value="' + dd + '"><input id="e-time" type="time" class="input" value="' + tt + '" style="width:7.2em"' + (E.allday == 1 ? ' hidden' : '') + '></div>' +
+        '<div class="r"><span class="k" style="width:30px;text-align:center">끝</span><input id="e-end" type="date" class="input grow" value="' + ed + '"' + (E.allday == 1 ? '' : ' hidden') + '><input id="e-endtime" type="time" class="input grow" value="' + et + '" placeholder="끝 시간"' + (E.allday == 1 ? ' hidden' : '') + '></div>' +
+      '</div>' +
+      '<div class="chips scroll" id="e-times" style="margin:-4px 0 10px"' + (E.allday == 1 ? ' hidden' : '') + '>' + [['09:00', '오전 9시'], ['10:00', '10시'], ['12:00', '낮 12시'], ['15:00', '오후 3시'], ['18:00', '6시'], ['19:00', '7시']].map(function (t) { return '<button type="button" class="chip" data-act="e-qt" data-v="' + t[0] + '">' + t[1] + '</button>'; }).join('') + '</div>' +
+      '<div class="grp">' +
+        '<div class="r"><span class="st" style="background:var(--blue)">' + UI.ic('history', 2) + '</span><span class="t">반복</span><div class="seg2" style="width:190px">' + [['', '없음'], ['매주', '매주'], ['매월', '매월'], ['매년', '매년']].map(function (r) { return '<button type="button" class="' + (E.repeat === r[0] ? 'on' : '') + '" data-act="e-rep" data-v="' + r[0] + '">' + r[1] + '</button>'; }).join('') + '</div></div>' +
+        '<div class="r" id="e-until-row"' + (E.repeat ? '' : ' hidden') + '><span class="st" style="background:var(--ink3)">' + UI.ic('x', 2) + '</span><span class="t">반복 끝나는 날</span><input id="e-until" type="date" class="input" value="' + esc(E.until || '') + '" style="width:9.5em"></div>' +
+        '<div class="r" id="e-cols"><span class="st" style="background:' + E.color + '" id="e-colst">' + UI.ic('tag', 2) + '</span><span class="t">색</span>' + EVC.map(function (c) { return '<button type="button" class="swatch' + (E.color === c ? ' on' : '') + '" data-act="e-col" data-v="' + c + '" style="background:' + c + '" aria-label="색 고르기"></button>'; }).join('') + '</div>' +
+      '</div>' +
+      '<div class="row" style="gap:8px;margin-bottom:6px"><input id="e-place" class="input" placeholder="장소" value="' + esc(E.place) + '" style="flex:1"><input id="e-who" class="input" placeholder="누구와" value="' + esc(E.who) + '" style="flex:1"></div>' +
+      (whoList.length ? '<div class="chips scroll" style="margin-bottom:8px">' + whoList.map(function (w) { return '<button type="button" class="chip" data-act="e-who" data-v="' + esc(w) + '">' + esc(w) + '</button>'; }).join('') + '</div>' : '') +
+      '<textarea id="e-memo" class="input textarea" rows="2" placeholder="메모 (준비물, 연락처 등)" style="margin-bottom:8px">' + esc(E.memo || '') + '</textarea>' +
+      '<div class="field"><label>예상 비용 <span class="faint" id="e-cost-hint">' + (E.repeat ? '(반복 일정은 예산에 넣지 않아요)' : '(넣으면 시작일 예산에 반영)') + '</span></label><div class="row" style="gap:8px"><div class="suffix-wrap" style="flex:1"><input id="e-cost" class="input num" inputmode="numeric" placeholder="0" value="' + (E.cost ? U.fmtInput(E.cost) : '') + '" data-in="e-cost"><span class="suffix">원</span></div><select id="e-cat" class="select" style="flex:1" aria-label="예산 항목">' + cats.map(function (c) { return '<option' + (c === (E.category || '일정') ? ' selected' : '') + '>' + esc(c) + '</option>'; }).join('') + '</select></div></div>' +
       '<div class="row" style="gap:8px">' + (E.id ? '<button class="btn ghost danger-t" data-act="e-del" style="flex:1">삭제</button>' : '') + '<button class="btn" data-act="e-save" style="flex:2">저장</button></div>');
     if (!E.id) setTimeout(function () { $('#e-title').focus(); }, 60);
   }
   UI.inputs['e-cost'] = function (el) { el.value = U.fmtInput(el.value); };
-  UI.actions['ev-new'] = function (el) { UI.closeSheet(); evSheet({ start: ((el && el.dataset.d) || U.today()) + ' 10:00' }); };
+  UI.actions['ev-new'] = function (el) { UI.closeSheet(); evSheet({ start: ((el && el.dataset.d) || S.calSel || U.today()) + ' 10:00' }); };
   UI.actions['ev-edit'] = function (el) { var e = X.get('events', el.dataset.id); if (e) { UI.closeSheet(); evSheet(e); } };
-  UI.actions['e-allday'] = function (el) { E.allday = E.allday == 1 ? 0 : 1; el.setAttribute('aria-checked', E.allday == 1); $('#e-time').hidden = E.allday == 1; $('#e-end-wrap').hidden = E.allday != 1; };
-  UI.actions['e-col'] = function (el) { E.color = el.dataset.v; document.querySelectorAll('#e-cols .swatch').forEach(function (b) { b.classList.toggle('on', b === el); }); };
-  UI.actions['e-rep'] = function (el) { E.repeat = el.dataset.v; el.parentNode.querySelectorAll('button').forEach(function (b) { b.classList.toggle('on', b === el); }); };
+  function setAllday(on) { E.allday = on ? 1 : 0; var sw = document.querySelector('[data-act="e-allday"]'); if (sw) sw.setAttribute('aria-checked', !!on); $('#e-time').hidden = on; $('#e-endtime').hidden = on; $('#e-end').hidden = !on; $('#e-times').hidden = on; if (on && !$('#e-end').value) $('#e-end').value = $('#e-date').value; }
+  UI.actions['e-allday'] = function () { setAllday(E.allday != 1); };
+  UI.actions['e-col'] = function (el) { E.color = el.dataset.v; document.querySelectorAll('#e-cols .swatch').forEach(function (b) { b.classList.toggle('on', b === el); }); $('#e-colst').style.background = E.color; };
+  UI.actions['e-rep'] = function (el) { E.repeat = el.dataset.v; el.parentNode.querySelectorAll('button').forEach(function (b) { b.classList.toggle('on', b === el); }); $('#e-until-row').hidden = !E.repeat; var ch = $('#e-cost-hint'); if (ch) ch.textContent = E.repeat ? '(반복 일정은 예산에 넣지 않아요)' : '(넣으면 시작일 예산에 반영)'; };
+  UI.actions['e-qt'] = function (el) { var v = el.dataset.v, et = $('#e-endtime'); $('#e-time').value = v; if (!et.value || et.value <= v) et.value = U.pad(Math.min(+v.slice(0, 2) + 1, 23)) + ':' + (+v.slice(0, 2) >= 23 ? '59' : '00'); document.querySelectorAll('#e-times .chip').forEach(function (c) { c.classList.toggle('on', c === el); }); };
+  UI.actions['e-who'] = function (el) { var w = $('#e-who'); w.value = w.value ? (w.value.indexOf(el.dataset.v) >= 0 ? w.value : w.value + ', ' + el.dataset.v) : el.dataset.v; };
+  UI.actions['e-tpl'] = function (el) {
+    document.querySelectorAll('[data-act="e-tpl"]').forEach(function (c) { c.classList.toggle('on', c === el); });
+    var t = TPL[+el.dataset.k], ti = $('#e-title'); if (!ti.value.trim()) ti.value = t[0]; else if (ti.value.indexOf(t[0]) < 0) ti.value = ti.value + ' ' + t[0];
+    E.repeat = t[1]; document.querySelectorAll('[data-act="e-rep"]').forEach(function (b) { b.classList.toggle('on', b.dataset.v === t[1]); }); $('#e-until-row').hidden = !t[1];
+    setAllday(!!t[2]); var sw = document.querySelector('[data-act="e-col"][data-v="' + t[3] + '"]'); if (sw) UI.actions['e-col'](sw);
+  };
   UI.actions['e-save'] = async function () {
     E.title = $('#e-title').value.trim(); var dd = $('#e-date').value; if (!E.title) return UI.toast('일정 이름을 써 주세요'); if (!U.parse(dd)) return UI.toast('날짜를 골라 주세요');
-    E.start = dd + (E.allday == 1 ? '' : ' ' + ($('#e-time').value || '10:00'));
-    var en = $('#e-end').value; E.end = E.allday == 1 && en && en > dd ? en : ''; E.category = $('#e-cat').value || '일정'; E.place = $('#e-place').value.trim(); E.who = $('#e-who').value.trim(); E.cost = U.parseInput($('#e-cost').value) || 0;
-    // 예상 비용 → 예산 행 (반복 없는 일정만). 기존 연결 행은 고치거나 지움
+    if (E.allday == 1) { var en = $('#e-end').value; if (en && en < dd) return UI.toast('끝나는 날이 시작일보다 빨라요'); E.start = dd; E.end = en && en > dd ? en : ''; }
+    else { var st = $('#e-time').value || '10:00', et = $('#e-endtime').value; if (et && et <= st) return UI.toast('끝 시간이 시작 시간보다 빨라요'); E.start = dd + ' ' + st; E.end = et ? dd + ' ' + et : ''; }
+    E.until = E.repeat ? ($('#e-until').value || '') : ''; if (E.until && E.until < dd) return UI.toast('반복 끝나는 날을 확인해 주세요');
+    E.category = $('#e-cat').value || '일정'; E.place = $('#e-place').value.trim(); E.who = $('#e-who').value.trim(); E.memo = $('#e-memo').value.trim(); E.cost = U.parseInput($('#e-cost').value) || 0;
     var orig = E0, linked = E.link ? St.get(E.link) : null, linkedBefore = linked ? Object.assign({}, linked) : null;
     if (E.cost > 0 && !E.repeat) {
       var row = Object.assign({}, linked || { id: U.uid(), type: 'budget', repeat: '변동', amount: 0, from: '', to: '', memo1: '', memo2: '' }, { date: dd, category: E.category, usage: E.title, budget: E.cost, memo2: '일정' });
       var sv = await St.save(row); E.link = sv.id;
     } else if (linked) { await St.remove(linked.id); E.link = ''; }
-    var saved = X.put('events', E); UI.closeSheet(); UI.render();
-    UI.toast('일정 저장 · ' + md(dd) + (E.cost && !E.repeat ? ' · 예산 ' + U.num(E.cost) + '원' : ''), { kind: 'ok', action: { label: '되돌리기', fn: async function () {
-      if (orig) { // 수정이었다면 이전 일정·예산 행으로 되돌림
-        if (linkedBefore) await St.save(linkedBefore); else if (saved.link && St.get(saved.link)) await St.remove(saved.link);
-        X.put('events', orig);
-      } else { X.del('events', saved.id); if (saved.link && St.get(saved.link)) await St.remove(saved.link); }
+    var saved = X.put('events', E); S.calSel = dd; if (S.tab === 'cal') S.month = dd.slice(0, 7); UI.closeSheet(); UI.render();
+    UI.toast('일정 저장 · ' + md(dd) + (E.cost && !E.repeat ? ' · 예산 ' + U.num(E.cost) + '원' : E.cost ? ' · 반복이라 예산 제외' : ''), { kind: 'ok', action: { label: '되돌리기', fn: async function () {
+      if (orig) { if (linkedBefore) await St.save(linkedBefore); else if (saved.link && St.get(saved.link)) await St.remove(saved.link); X.put('events', orig); }
+      else { X.del('events', saved.id); if (saved.link && St.get(saved.link)) await St.remove(saved.link); }
       UI.render();
     } } });
   };
@@ -245,7 +303,7 @@
   UI.views.entries.render = function () { return listCalSeg('entries') + entR.apply(this, arguments); };
   UI.views.cal.render = function () { return listCalSeg('cal') + calR.apply(this, arguments); };
 
-  /* ───── 오늘 화면에 일정·일기 더하기 / 동기화 연결 ───── */
+  /* ───── 오늘 화면에 일정·노트 더하기 / 동기화 연결 ───── */
   var homeRender = UI.views.home.render;
   UI.views.home.render = function () {
     var h = homeRender(), d = UI.derive(), evs = X.eventsIn(d.today, U.addDays(d.today, 7)).slice(0, 4), notes = X.list('notes').filter(function (n) { return n.date === d.today; });

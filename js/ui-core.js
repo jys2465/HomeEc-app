@@ -84,7 +84,7 @@
   UI.toast = function (msg, opt) {
     opt = opt || {};
     var t = $('#toast'); if (!t) return;
-    t.className = 'toast show ' + (opt.kind || '');
+    t.className = 'toast show ' + (opt.kind || '') + (UI.sheetEl() ? ' up' : '');
     t.innerHTML = '<span>' + esc(msg) + '</span>' + (opt.action ? '<button data-act="toast-action">' + esc(opt.action.label) + '</button>' : '');
     UI._toastAct = opt.action ? opt.action.fn : null;
     clearTimeout(UI._tt);
@@ -117,12 +117,12 @@
   UI.sheet = function (html, opts) {
     var layer = $('#layer');
     layer.innerHTML = '<div class="scrim" data-act="scrim"><div class="sheet" role="dialog" aria-modal="true"><div class="grab"></div>' + html + '</div></div>';
-    UI.sheetOpts = opts || {};
+    UI.sheetOpts = opts || {}; document.documentElement.classList.add('sheet-open');
     return layer.querySelector('.sheet');
   };
   UI.closeSheet = function () {
     var layer = $('#layer'); if (!layer || !layer.innerHTML) return;
-    layer.innerHTML = '';
+    layer.innerHTML = ''; document.documentElement.classList.remove('sheet-open');
     var cb = UI.sheetOpts && UI.sheetOpts.onClose; UI.sheetOpts = null; if (cb) cb();
   };
   UI.sheetEl = function () { return document.querySelector('#layer .sheet'); };
@@ -159,11 +159,11 @@
   UI.render = function () {
     if (!$('#view') || $('#app').hidden) return;
     var S = UI.S, view = $('#view'), v = UI.views[S.tab];
-    scrollPos[S.tab] = view.scrollTop;
+    var se = UI.scroller(); if (UI._lastTab === S.tab) scrollPos[S.tab] = se.scrollTop; UI._lastTab = S.tab;
     var ae = document.activeElement, focusId = ae && ae.id && view.contains(ae) ? ae.id : null, selStart = focusId && ae.selectionStart;
     UI.renderTop(); UI.renderTabs();
     view.innerHTML = v ? v.render() : '';
-    view.scrollTop = scrollPos[S.tab] || 0;
+    se.scrollTop = scrollPos[S.tab] || 0;
     if (focusId) { var el = document.getElementById(focusId); if (el) { el.focus(); try { el.setSelectionRange(selStart, selStart); } catch (e) { /* 무시 */ } } }
     if (v && v.after) v.after();
   };
@@ -171,11 +171,12 @@
     if (pending) return; pending = true;
     requestAnimationFrame(function () { pending = false; try { UI.render(); } catch (e) { console.error(e); } });
   };
-  UI.setTab = function (t) { UI.S.tab = t; var view = $('#view'); UI.render(); view.scrollTop = scrollPos[t] || 0; };
+  UI.scroller = function () { return document.scrollingElement || document.documentElement; }; // 페이지 자체가 스크롤 (일반 웹앱 방식)
+  UI.setTab = function (t) { if (UI._lastTab) scrollPos[UI._lastTab] = UI.scroller().scrollTop; UI.S.tab = t; UI.render(); UI.scroller().scrollTop = scrollPos[t] || 0; };
 
   /* ───── 공통 동작 ───── */
   UI.actions.tab = function (el) { UI.setTab(el.dataset.tab); };
-  UI.actions.month = function (el) { UI.S.month = U.shiftMonth(UI.S.month, +el.dataset.d); UI.render(); $('#view').scrollTop = 0; };
+  UI.actions.month = function (el) { UI.S.month = U.shiftMonth(UI.S.month, +el.dataset.d); UI.render(); UI.scroller().scrollTop = 0; };
   UI.actions['month-today'] = function () { UI.S.month = U.today().slice(0, 7); UI.render(); };
   UI.actions.lock = function () { AB.lock && AB.lock.lockNow(); };
   UI.actions.sync = function () {
@@ -184,7 +185,7 @@
   };
   UI.actions.edit = function (el) { AB.ui.openEdit(el.dataset.id); };
   UI.actions.add = function () { AB.ui.openAdd(); };
-  UI.actions.go = function (el) { if (el.dataset.ana) UI.S.ana = el.dataset.ana; UI.setTab(el.dataset.tab); };
+  UI.actions.go = function (el) { if (el.dataset.ana) UI.S.ana = el.dataset.ana; if (el.dataset.tab === 'settings' && el.dataset.open) UI.S.setOpen = el.dataset.open; UI.setTab(el.dataset.tab); };
 
   UI.runSync = async function (opts) {
     opts = opts || {};
