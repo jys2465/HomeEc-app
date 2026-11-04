@@ -18,7 +18,7 @@ const VERSION = 3;
 const SHEET = { DATA: 'data', CHANGES: 'changes', IDS: '_ids', CONFIG: 'config', SUM: 'sumary' };
 const NCOL = 11; // data 시트의 A~K (사용일자 … 메모2) — 이 11열의 위치/의미는 절대 바꾸지 않습니다.
 const HEADERS = ['사용일자', '유형', '반복성', '계정항목', '사용내역', '예산금액', '확정금액', '출금계정', '입금계정', '메모1', '메모2'];
-const META = ['id', 'rev', 'updated']; // 이름으로 찾는 보조 열(자동 추가·숨김). L열이 있어도/없어도 상관없습니다.
+const META = ['id', 'rev', 'updated', 'time']; // time = 앱에서 입력한 시각(HH:MM). 지문(hash)에는 넣지 않아 시트 직접 수정 감지에 영향 없음 // 이름으로 찾는 보조 열(자동 추가·숨김). L열이 있어도/없어도 상관없습니다.
 const DATE_FMT = 'yyyy-mm-dd(aaa)';
 const TYPE_KO = { expense: '지출', income: '수입', transfer: '이체', budget: '예산' };
 const LIMITS = {
@@ -38,6 +38,7 @@ function onOpen() {
     SpreadsheetApp.getUi().createMenu('가계부 v2')
       .addItem('① 초기 설정 / 점검 (setup)', 'setup')
       .addItem('앱 연결 토큰 보기', 'showToken')
+      .addItem('구글 캘린더 · Tasks 연동 허용 (linkSetup)', 'linkSetup')
       .addItem('토큰 새로 만들기', 'rotateToken')
       .addSeparator()
       .addItem('요약(sumary) 새로고침', 'filterDataToSummary')
@@ -202,10 +203,12 @@ function syncLocked_(p) {
     finalSlots.forEach(function (s) {
       if (s.blank) return;
       const it = byId[s.id];
-      if (it) { s.rev = it.rev; s.ts = it.ts; }
+      if (it) { s.rev = it.rev; s.ts = it.ts; if (it.row && it.row.tm && s.row) s.row.tm = it.row.tm; }
     });
     writeCol_(env.data, env.mc.rev, finalSlots, function (s) { return s.blank ? '' : s.rev; });
     writeCol_(env.data, env.mc.updated, finalSlots, function (s) { return s.blank ? '' : s.ts; });
+    try { env.data.getRange(2, env.mc.time, Math.max(finalSlots.length, 1), 1).setNumberFormat('@'); } catch (e) { /* 무시 */ }
+    writeCol_(env.data, env.mc.time, finalSlots, function (s) { return s.blank || !s.row ? '' : (s.row.tm || ''); });
   }
   saveRegistry_(env, finalSlots);
 
@@ -343,6 +346,7 @@ function loadSlots_(env) {
   const ids = sh.getRange(2, mc.id, n, 1).getValues();
   const revs = sh.getRange(2, mc.rev, n, 1).getValues();
   const upds = sh.getRange(2, mc.updated, n, 1).getValues();
+  const tms = mc.time ? sh.getRange(2, mc.time, n, 1).getDisplayValues() : null;
   const tz = env.ss.getSpreadsheetTimeZone();
   const out = [];
   for (let i = 0; i < n; i++) {
@@ -353,7 +357,8 @@ function loadSlots_(env) {
       slot.row = {
         date: date, type: parseType_(v[1]), repeat: str_(v[2]) === '고정' ? '고정' : '변동',
         category: str_(v[3]), usage: str_(v[4]), budget: num_(v[5]), amount: num_(v[6]),
-        from: str_(v[7]), to: str_(v[8]), memo1: str_(v[9]), memo2: str_(v[10])
+        from: str_(v[7]), to: str_(v[8]), memo1: str_(v[9]), memo2: str_(v[10]),
+        tm: tms && /^\d{1,2}:\d{2}$/.test(String(tms[i][0])) ? String(tms[i][0]).padStart(5, '0') : ''
       };
     }
     out.push(slot);
@@ -495,7 +500,8 @@ function sanitizeRow_(r) {
     date: date, type: r.type, repeat: r.repeat === '고정' ? '고정' : '변동',
     category: cut_(r.category, 60), usage: cut_(r.usage, LIMITS.textMax),
     budget: num_(r.budget), amount: num_(r.amount),
-    from: cut_(r.from, 40), to: cut_(r.to, 40), memo1: cut_(r.memo1, LIMITS.memoMax), memo2: cut_(r.memo2, LIMITS.memoMax)
+    from: cut_(r.from, 40), to: cut_(r.to, 40), memo1: cut_(r.memo1, LIMITS.memoMax), memo2: cut_(r.memo2, LIMITS.memoMax),
+    tm: /^\d{2}:\d{2}$/.test(str_(r.tm)) ? str_(r.tm) : ''
   };
   if (out.budget < 0 || out.amount < 0) return null;
   return out;
@@ -795,8 +801,8 @@ function sumarySnapshot_() {
  *  응답: { ok, now, rows:{ notes:[...], events:[...], goals:[...] } }  ← since 이후 바뀐 행(지운 행은 deleted:1)
  */
 const SIDE = {
-  notes:  { head: ['날짜', '종류', '제목', '내용', '기분', '태그', '연결내역', '사진', '비밀'], keys: ['date', 'kind', 'title', 'body', 'mood', 'tags', 'link', 'photo', 'secret'] },
-  events: { head: ['시작', '끝', '하루종일', '제목', '장소', '반복', '사람', '예상비용', '연결내역', '색', '예산항목', '반복끝', '메모'], keys: ['start', 'end', 'allday', 'title', 'place', 'repeat', 'who', 'cost', 'link', 'color', 'category', 'until', 'memo'] },
+  notes:  { head: ['날짜', '종류', '제목', '내용', '기분', '태그', '연결내역', '사진', '비밀', '시각', '할일'], keys: ['date', 'kind', 'title', 'body', 'mood', 'tags', 'link', 'photo', 'secret', 'tm', 'tasks'], keep: ['tasks'] },
+  events: { head: ['시작', '끝', '하루종일', '제목', '장소', '반복', '사람', '예상비용', '연결내역', '색', '예산항목', '반복끝', '메모', '구글ID', '구글맞춤'], keys: ['start', 'end', 'allday', 'title', 'place', 'repeat', 'who', 'cost', 'link', 'color', 'category', 'until', 'memo', 'gid', 'gsync'], keep: ['gid', 'gsync'] },
   goals:  { head: ['이름', '목표금액', '목표일', '태그', '모은금액', '메모'], keys: ['name', 'target', 'due', 'tag', 'saved', 'memo'] }
 };
 const SIDE_META = ['id', 'updated', 'deleted', 'synced']; // updated = 고친 시각(누가 이기는지), synced = 서버에 들어온 시각(since 기준)
@@ -805,7 +811,7 @@ function side_(p) {
   const lock = LockService.getScriptLock();
   if (!lock.tryLock(25000)) return { ok: false, err: 'busy' };
   try {
-    const ss = ss_(), now = Date.now(), since = Number(p.since) || 0, out = {};
+    const ss = ss_(), now = Date.now(), since = Number(p.since) || 0, out = {}, errs = {};
     const puts = (p.puts || []).slice(0, 500), dels = (p.dels || []).slice(0, 200);
     Object.keys(SIDE).forEach(function (t) {
       const def = SIDE[t], head = def.head.concat(SIDE_META), sh = getOrCreate_(ss, t, head, false);
@@ -831,6 +837,7 @@ function side_(p) {
         const r = x.row, ts = Math.min(Number(r.updated) || now, now + 60000), i = byId[r.id];
         if (i !== undefined && Number(vals[i][w - 3]) > ts) return; // 시트 쪽이 더 늦게 고쳐졌으면 시트 값 유지
         const line = def.keys.map(function (k) { return cut_(r[k], k === 'body' || k === 'memo' ? 5000 : 300); }).concat([str_(r.id), ts, '', now]);
+        if (i !== undefined && def.keep) def.keep.forEach(function (k) { const j = def.keys.indexOf(k); if (!str_(line[j]) && str_(vals[i][j])) line[j] = vals[i][j]; }); // 서버가 붙인 구글ID 등은 앱이 비워 보내도 유지
         if (i === undefined) { byId[r.id] = vals.length; vals.push(line); } else vals[i] = line;
         changed = true;
       });
@@ -838,12 +845,124 @@ function side_(p) {
         const i = byId[x.id]; if (i === undefined) return;
         vals[i][w - 3] = Math.min(Number(x.ts) || now, now + 60000); vals[i][w - 2] = 1; vals[i][w - 1] = now; changed = true;
       });
+      if (t === 'events' && p.gcal) { try { if (gcalSync_(def, vals, byId, w, now)) changed = true; } catch (e) { errs.gcal = String(e && e.message || e); } }
+      if (t === 'notes' && p.tasks) { try { if (tasksSync_(def, vals, w, now)) changed = true; } catch (e) { errs.tasks = String(e && e.message || e); } }
       if (changed && vals.length) { ensureSize_(sh, vals.length + 1, w); sh.getRange(2, 1, vals.length, w - 3).setNumberFormat('@'); sh.getRange(2, 1, vals.length, w).setValues(vals); } // 날짜가 시트에서 자동 변환되지 않게 글자 서식
       out[t] = vals.filter(function (v) { return since <= 0 || Number(v[w - 1]) > since; }).map(function (v) {
         const o = {}; def.keys.forEach(function (k, j) { o[k] = v[j] instanceof Date ? Utilities.formatDate(v[j], ss.getSpreadsheetTimeZone(), (k === 'start' || k === 'end') ? 'yyyy-MM-dd HH:mm' : 'yyyy-MM-dd') : v[j]; });
         o.id = str_(v[w - 4]); o.updated = Number(v[w - 3]) || 0; o.deleted = v[w - 2] ? 1 : 0; return o;
       });
     });
-    return { ok: true, now: now, rows: out };
+    return { ok: true, now: now, rows: out, errs: errs };
   } finally { lock.releaseLock(); }
+}
+
+
+/* ───────────────────── 구글 기본 캘린더 연동 ─────────────────────
+ *  앱 → 캘린더: 새 일정은 만들고, 고친 일정(updated > 구글맞춤)은 고치고, 지운 일정은 캘린더에서도 지움.
+ *  캘린더 → 앱: 오늘 기준 30일 전 ~ 120일 뒤 일정 중 앱에 없는 것은 새로 들여오고, 캘린더에서 더 늦게 고친 것은 앱에 반영.
+ *  반복 일정은 캘린더 '반복 일정'으로 만듭니다. (캘린더에서 들여온 반복 일정은 첫 회만 보입니다) */
+function gcalSync_(def, vals, byId, w, now) {
+  const cal = CalendarApp.getDefaultCalendar(), K = {}; def.keys.forEach(function (k, j) { K[k] = j; });
+  const ID = w - 4, UPD = w - 3, DEL = w - 2, SYN = w - 1;
+  let changed = false;
+  const toDate = function (s) { const m = String(s || '').match(/^(\d{4})-(\d{2})-(\d{2})(?:[ T](\d{2}):(\d{2}))?/); return m ? new Date(+m[1], +m[2] - 1, +m[3], +(m[4] || 0), +(m[5] || 0)) : null; };
+  const fmt = function (d, withTime) { return Utilities.formatDate(d, Session.getScriptTimeZone(), withTime ? 'yyyy-MM-dd HH:mm' : 'yyyy-MM-dd'); };
+  const desc = function (v) { return [v[K.memo], v[K.who] ? '누구와: ' + v[K.who] : '', v[K.cost] ? '예상 비용: ' + v[K.cost] + '원' : '', '(내 하루장)'].filter(String).join('\n'); };
+  const getEv = function (gid) { try { return cal.getEventById(gid); } catch (e) { return null; } };
+  const create = function (v) {
+    const st = toDate(v[K.start]); if (!st) return null;
+    const allday = String(v[K.allday]) === '1' || !/\d{2}:\d{2}/.test(String(v[K.start]));
+    let en = toDate(v[K.end]); const opt = { location: str_(v[K.place]), description: desc(v) };
+    const rep = str_(v[K.repeat]);
+    if (rep) {
+      let rule = rep === '매주' ? CalendarApp.newRecurrence().addWeeklyRule() : rep === '매월' ? CalendarApp.newRecurrence().addMonthlyRule() : CalendarApp.newRecurrence().addYearlyRule();
+      const until = toDate(v[K.until]); if (until) rule = rule.until(new Date(until.getTime() + 86399000));
+      const ser = allday ? cal.createAllDayEventSeries(str_(v[K.title]), st, rule, opt) : cal.createEventSeries(str_(v[K.title]), st, en && en > st ? en : new Date(st.getTime() + 3600000), rule, opt);
+      return ser.getId();
+    }
+    if (allday) { const last = en && en > st ? en : st; return cal.createAllDayEvent(str_(v[K.title]), st, new Date(last.getTime() + 86400000), opt).getId(); }
+    return cal.createEvent(str_(v[K.title]), st, en && en > st ? en : new Date(st.getTime() + 3600000), opt).getId();
+  };
+  const removeG = function (gid) {
+    try { const ser = cal.getEventSeriesById(gid); if (ser) { ser.deleteEventSeries(); return; } } catch (e) { /* 반복 아님 */ }
+    const ev = getEv(gid); if (!ev) return; try { if (ev.isRecurringEvent()) ev.getEventSeries().deleteEventSeries(); else ev.deleteEvent(); } catch (e) { /* 이미 없음 */ }
+  };
+  // 1) 앱 → 캘린더
+  vals.forEach(function (v) {
+    const gid = str_(v[K.gid]), del = !!v[DEL], upd = Number(v[UPD]) || 0, gs = Number(v[K.gsync]) || 0;
+    if (str_(v[K.repeat]) === '구글반복') { if (del && gid) { v[K.gid] = ''; v[SYN] = now; changed = true; } return; } // 캘린더에서 온 반복 일정: 앱에서는 보기만 (구글 쪽 반복 전체를 건드리지 않음)
+    if (del) { if (gid) { removeG(gid); v[K.gid] = ''; v[K.gsync] = now; v[SYN] = now; changed = true; } return; }
+    if (!gid) { const id = create(v); if (id) { v[K.gid] = id; v[K.gsync] = Date.now(); v[SYN] = now; changed = true; } return; }
+    if (upd > gs) { removeG(gid); const id2 = create(v); v[K.gid] = id2 || ''; v[K.gsync] = Date.now(); v[SYN] = now; changed = true; } // 고친 일정: 다시 만들어 시간·반복까지 정확히
+  });
+  // 2) 캘린더 → 앱
+  const byG = {}; vals.forEach(function (v, i) { if (str_(v[K.gid])) byG[str_(v[K.gid])] = i; });
+  const from = new Date(now - 30 * 86400000), to = new Date(now + 120 * 86400000), seen = {};
+  cal.getEvents(from, to).forEach(function (ev) {
+    const gid = ev.getId(); if (seen[gid]) return; seen[gid] = 1;
+    const allday = ev.isAllDayEvent(), st = allday ? ev.getAllDayStartDate() : ev.getStartTime(), en = allday ? new Date(ev.getAllDayEndDate().getTime() - 86400000) : ev.getEndTime();
+    const lu = ev.getLastUpdated().getTime(), i = byG[gid];
+    const fields = { start: fmt(st, !allday), end: allday ? (fmt(en, false) > fmt(st, false) ? fmt(en, false) : '') : fmt(en, true), allday: allday ? 1 : 0, title: ev.getTitle(), place: ev.getLocation(), memo: String(ev.getDescription() || '').split('\n').filter(function (l) { return !/^(누구와: |예상 비용: |\(내 하루장\)$)/.test(l); }).join('\n').trim() };
+    if (i === undefined) {
+      if (/\(내 하루장\)/.test(ev.getDescription() || '')) return; // 앱이 만들었는데 앱에서 지운 일정의 남은 회차 등은 들여오지 않음
+      const line = def.keys.map(function () { return ''; }).concat(['g' + Utilities.getUuid().replace(/-/g, '').slice(0, 20), now, '', now]);
+      Object.keys(fields).forEach(function (k) { line[K[k]] = fields[k]; }); line[K.gid] = gid; line[K.gsync] = now; line[K.color] = '#4285F4'; line[K.category] = '일정';
+      if (ev.isRecurringEvent()) line[K.repeat] = '구글반복';
+      byId[line[w - 4]] = vals.length; vals.push(line); changed = true;
+    } else if (lu > (Number(vals[i][K.gsync]) || 0) + 60000 && !ev.isRecurringEvent()) {
+      const v = vals[i]; Object.keys(fields).forEach(function (k) { v[K[k]] = fields[k]; }); v[K.gsync] = now; v[UPD] = now; v[SYN] = now; changed = true;
+    }
+  });
+  // 3) 캘린더에서 지운 일정 → 앱에서도 지움 (기간 안, 반복 아님, 방금 만든 것 제외)
+  const fromS = fmt(from, false), toS = fmt(to, false);
+  vals.forEach(function (v) {
+    const gid = str_(v[K.gid]); if (!gid || v[DEL] || seen[gid] || str_(v[K.repeat])) return;
+    const d0 = String(v[K.start] || '').slice(0, 10); if (!(d0 > fromS && d0 < toS)) return; // 경계일은 판단하지 않음(시간 차이로 잘못 지우지 않게)
+    if (Date.now() - (Number(v[K.gsync]) || 0) < 120000) return;
+    v[DEL] = 1; v[UPD] = now; v[SYN] = now; v[K.gid] = ''; changed = true;
+  });
+  return changed;
+}
+
+/* ───────────────────── 구글 Tasks(할 일) 연동 ─────────────────────
+ *  노트 안의 '☐ 할 일' 줄을 구글 Tasks의 '내 하루장' 목록으로 보내고, 구글에서 완료하면 노트의 줄이 '☑'로 바뀝니다.
+ *  (Apps Script 편집기 › 서비스 › Google Tasks API 를 켜야 합니다 — appsscript.json에 이미 들어 있음) */
+function tasksSync_(def, vals, w, now) {
+  if (typeof Tasks === 'undefined') throw new Error('Google Tasks API 서비스가 꺼져 있어요');
+  const K = {}; def.keys.forEach(function (k, j) { K[k] = j; });
+  const UPD = w - 3, DEL = w - 2, SYN = w - 1;
+  let listId = props_().getProperty('TASKLIST');
+  if (listId) { try { Tasks.Tasklists.get(listId); } catch (e) { listId = null; } }
+  if (!listId) {
+    const ls = (Tasks.Tasklists.list({ maxResults: 100 }).items || []).filter(function (l) { return l.title === '내 하루장'; })[0];
+    listId = ls ? ls.id : Tasks.Tasklists.insert({ title: '내 하루장' }).id;
+    props_().setProperty('TASKLIST', listId);
+  }
+  const status = {}; let pageToken = null;
+  do { const r = Tasks.Tasks.list(listId, { showCompleted: true, showHidden: true, maxResults: 100, pageToken: pageToken }); (r.items || []).forEach(function (t) { status[t.id] = t.status; }); pageToken = r.nextPageToken; } while (pageToken);
+  let changed = false;
+  vals.forEach(function (v) {
+    if (v[DEL]) return;
+    let map = {}; try { map = JSON.parse(str_(v[K.tasks]) || '{}') || {}; } catch (e) { map = {}; }
+    const lines = String(v[K.body] || '').split('\n'); let bodyChanged = false, mapChanged = false;
+    lines.forEach(function (ln, idx) {
+      const m = ln.match(/^(\s*)(☐|☑|- \[ \]|- \[x\])\s*(.+)$/); if (!m) return;
+      const text = m[3].trim(), done = m[2] === '☑' || m[2] === '- [x]', id = map[text];
+      if (!id) { if (done) return; const t = Tasks.Tasks.insert({ title: text, notes: '내 하루장 노트 · ' + str_(v[K.date]) }, listId); map[text] = t.id; mapChanged = true; return; }
+      const gDone = status[id] === 'completed';
+      if (gDone && !done) { lines[idx] = m[1] + '☑ ' + text; bodyChanged = true; }
+      else if (done && status[id] && !gDone) { try { Tasks.Tasks.patch({ status: 'completed' }, listId, id); } catch (e) { /* 무시 */ } }
+    });
+    if (bodyChanged) { v[K.body] = lines.join('\n'); v[UPD] = now; }
+    if (bodyChanged || mapChanged) { v[K.tasks] = JSON.stringify(map); v[SYN] = now; changed = true; }
+  });
+  return changed;
+}
+
+/** 연동을 처음 켤 때 한 번 실행: 캘린더 · Tasks 권한을 허용하는 창이 뜹니다. */
+function linkSetup() {
+  CalendarApp.getDefaultCalendar().getName();
+  if (typeof Tasks !== 'undefined') Tasks.Tasklists.list({ maxResults: 1 });
+  const ui = tryUi_(); if (ui) ui.alert('연동 준비 완료 ✔\n\n앱의 ⋯ › 연동에서 구글 캘린더 · Tasks를 켜세요.');
 }

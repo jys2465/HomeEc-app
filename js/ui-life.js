@@ -160,7 +160,7 @@
     UI.sheet('<div class="sh"><b>' + (N.id ? '노트 수정' : '새 노트') + '</b>' + x() + '</div>' +
       '<div class="row" style="gap:8px;margin-bottom:8px"><input id="n-date" type="date" class="input" value="' + N.date + '" style="flex:1"><div class="seg2" style="flex:1.4">' + MOOD.map(function (m) { return '<button class="' + (N.mood === m ? 'on' : '') + '" data-act="n-mood" data-v="' + m + '" aria-label="기분 ' + m + '">' + m + '</button>'; }).join('') + '</div></div>' +
       '<input id="n-title" class="input" placeholder="제목 (없어도 돼요)" value="' + esc(N.title) + '" style="margin-bottom:8px">' +
-      '<div class="row between" style="margin-bottom:4px"><span class="k">내용</span><button class="btn soft sm mic" data-act="dictate" data-for="n-body" aria-label="말로 쓰기">' + UI.ic('mic', 2.2) + '말로 쓰기</button></div><textarea id="n-body" class="input textarea" rows="6" placeholder="오늘 있었던 일, 떠오른 생각">' + esc(N.body) + '</textarea>' +
+      '<div class="row between" style="margin-bottom:4px"><span class="k">내용</span><div class="row" style="gap:6px"><button class="btn soft sm" data-act="n-todo" aria-label="할 일 줄 넣기">☐ 할 일</button><button class="btn soft sm mic" data-act="dictate" data-for="n-body" aria-label="말로 쓰기">' + UI.ic('mic', 2.2) + '말로</button></div></div><textarea id="n-body" class="input textarea" rows="6" placeholder="오늘 있었던 일, 떠오른 생각">' + esc(N.body) + '</textarea>' +
       '<div class="row" style="gap:8px;margin-top:8px"><input id="n-tags" class="input" placeholder="#가족 #건강" value="' + esc(N.tags) + '" style="flex:1">' + '</div>' +
       '<div class="grp" style="margin-top:10px"><div class="r"><span class="st" style="background:var(--ink2)">' + UI.ic('eye', 2) + '</span><span class="t">비밀 (목록에서 내용 가리기)</span><button class="sw" data-act="n-secret" role="switch" aria-checked="' + (N.secret == 1) + '" aria-label="비밀"><i></i></button></div>' +
       '<div class="r"><span class="st" style="background:var(--expense)">' + UI.ic('coin', 2) + '</span><span class="t">이 날 지출</span><span class="v num">' + U.num(e) + '원</span></div></div>' +
@@ -177,11 +177,13 @@
   UI.actions['note-new'] = function (el) { UI.closeSheet(); noteSheet({ date: (el && el.dataset.d) || U.today() }); };
     UI.actions['note-edit'] = function (el) { var n = X.get('notes', el.dataset.id); if (n) { UI.closeSheet(); noteSheet(n); } };
   UI.actions['n-kind'] = function (el) { collect(); N.kind = el.dataset.v; noteSheet(N); };
+  UI.actions['n-todo'] = function () { var b = $('#n-body'); var v = b.value; b.value = v + (v && !/\n$/.test(v) ? '\n' : '') + '☐ '; b.focus(); try { b.setSelectionRange(b.value.length, b.value.length); } catch (e) { /* 무시 */ } };
   UI.actions['n-mood'] = function (el) { N.mood = N.mood === el.dataset.v ? '' : el.dataset.v; el.parentNode.querySelectorAll('button').forEach(function (b) { b.classList.toggle('on', b.dataset.v === N.mood); }); };
   UI.actions['n-secret'] = function (el) { N.secret = N.secret == 1 ? 0 : 1; el.setAttribute('aria-checked', N.secret == 1); };
   UI.actions['n-save'] = function () {
     collect(); if (!U.parse(N.date)) return UI.toast('날짜를 골라 주세요');
     if (!N.title && !N.body.trim()) return UI.toast('내용을 써 주세요');
+    if (!N.tm && !N.id && N.date === U.today()) { var nn = new Date(); N.tm = U.pad(nn.getHours()) + ':' + U.pad(nn.getMinutes()); }
     var saved = X.put('notes', N); UI.closeSheet(); UI.render();
     UI.toast('노트 저장했어요', { kind: 'ok', action: { label: '되돌리기', fn: function () { X.del('notes', saved.id); UI.render(); } } });
   };
@@ -263,7 +265,7 @@
   UI.views.jar = {
     render: function () {
       var d = UI.derive(), gs = X.list('goals');
-      var h = '<div class="row between" style="margin-bottom:10px"><b class="t1" style="font-size:1.2rem">저금통</b><button class="btn soft sm" data-act="g-new">' + UI.ic('plus', 2.2) + '새 목표</button></div>';
+      var h = '<div class="row" style="margin-bottom:10px;justify-content:flex-end"><button class="btn soft sm" data-act="g-new">' + UI.ic('plus', 2.2) + '새 목표</button></div>';
       if (!gs.length) return h + '<div class="card"><div class="empty"><b>모으고 싶은 목표를 만들어 보세요</b>예: 가족여행 300만 원 · #가족여행 지출은 자동으로 합산돼요</div></div>';
       return h + gs.map(function (g) {
         var tagSum = 0; if (g.tag) d.rows.forEach(function (r) { if (r.type === 'expense' && (r.memo1 + ' ' + r.memo2 + ' ' + r.usage).indexOf(String(g.tag).replace(/^#/, '')) >= 0) tagSum += r.amount || 0; });
@@ -299,9 +301,7 @@
 
   /* ───── 내역 ↔ 달력: 같은 탭 안에서 바꿔 보기 ───── */
   function listCalSeg(on) { return '<div class="seg2" style="margin-bottom:10px"><button class="' + (on === 'entries' ? 'on' : '') + '" data-act="tab" data-tab="entries">' + UI.ic('list', 2) + ' 목록</button><button class="' + (on === 'cal' ? 'on' : '') + '" data-act="tab" data-tab="cal">' + UI.ic('cal', 2) + ' 달력</button></div>'; }
-  var entR = UI.views.entries.render, calR = UI.views.cal.render;
-  UI.views.entries.render = function () { return listCalSeg('entries') + entR.apply(this, arguments); };
-  UI.views.cal.render = function () { return listCalSeg('cal') + calR.apply(this, arguments); };
+  /* 4.0: 달력은 '하루' 탭의 주간 띠·한 달 보기로 옮김 (ui-day.js) */
 
   /* ───── 오늘 화면에 일정·노트 더하기 / 동기화 연결 ───── */
   var homeRender = UI.views.home.render;

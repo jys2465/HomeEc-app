@@ -33,7 +33,9 @@
     var sentKey = {};
     sent.forEach(function (x) { var r = db[x.t][x.id]; if (!r) return; sentKey[x.t + '|' + x.id] = r.updated; if (x.op === 'del') dels.push({ t: x.t, id: x.id, ts: r.updated }); else puts.push({ t: x.t, row: Object.assign({}, r) }); });
     try {
-      var res = await Sy.call({ a: 'side', since: db.since, puts: puts, dels: dels }, 30000);
+      var flag = function (k) { try { return localStorage.getItem(k) === '1'; } catch (e) { return false; } };
+      var res = await Sy.call({ a: 'side', since: db.since, puts: puts, dels: dels, gcal: flag('ab.gcal'), tasks: flag('ab.tasks') }, 45000);
+      X.lastErrs = (res && res.errs) || {}; X.lastSync = Date.now();
       if (!res || !res.ok) return { ok: false, err: res && res.err };
       Object.keys(res.rows || {}).forEach(function (t) {
         if (!db[t]) db[t] = {};
@@ -50,6 +52,7 @@
     } catch (e) { return { ok: false, err: String(e && e.message || e) }; }
     finally { busy = false; }
   };
+  X.syncSoon = kick;
   X.wipe = function () { db = { notes: {}, events: {}, goals: {}, q: [], since: 0 }; bump(); save(); };
 
   /* 일정 펼치기: 반복(매주·매월·매년)을 기간 안의 날짜로 */

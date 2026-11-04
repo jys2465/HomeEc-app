@@ -14,7 +14,7 @@
   var mem = { rows: [], byId: {}, meta: {}, ops: [], conflicts: [], version: 0 };
   var listeners = [];
 
-  var FIELDS = ['date', 'type', 'repeat', 'category', 'usage', 'budget', 'amount', 'from', 'to', 'memo1', 'memo2'];
+  var FIELDS = ['date', 'type', 'repeat', 'category', 'usage', 'budget', 'amount', 'from', 'to', 'memo1', 'memo2', 'tm']; // tm = 입력 시각(HH:MM)
 
   function open() {
     return new Promise(function (res, rej) {
@@ -53,6 +53,7 @@
       id: String(o.id), date: String(o.date || ''), type: o.type || 'expense', repeat: o.repeat === '고정' ? '고정' : '변동',
       category: String(o.category || ''), usage: String(o.usage || ''), budget: Number(o.budget) || 0, amount: Number(o.amount) || 0,
       from: String(o.from || ''), to: String(o.to || ''), memo1: String(o.memo1 || ''), memo2: String(o.memo2 || ''),
+      tm: /^\d{2}:\d{2}$/.test(String(o.tm || '')) ? String(o.tm) : '',
       rev: Number(o.rev) || 0, ts: Number(o.ts) || 0
     };
   }

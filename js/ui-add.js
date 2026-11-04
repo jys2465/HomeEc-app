@@ -224,7 +224,8 @@
     var row = {
       id: F.id || U.uid(), date: F.date, type: t, repeat: F.repeat, category: t === 'transfer' ? '' : F.category, usage: F.usage,
       budget: budget, amount: t === 'budget' ? 0 : F.amount, from: (t === 'expense' || t === 'transfer') ? F.from : '', to: (t === 'income' || t === 'transfer') ? F.to : '',
-      memo1: F.memo1, memo2: F.memo2, rev: F.orig ? F.orig.rev : 0
+      memo1: F.memo1, memo2: F.memo2, rev: F.orig ? F.orig.rev : 0,
+      tm: F.orig ? (F.orig.tm || '') : (function () { var n = new Date(); return F.date === U.today() ? U.pad(n.getHours()) + ':' + U.pad(n.getMinutes()) : ''; })()
     };
     var orig = F.orig, wasNew = F.isNew;
     var saved = await St.save(row);

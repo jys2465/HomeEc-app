@@ -57,6 +57,7 @@
     var conn = h; h = '';
     h += '<div class="card"><h3>보안</h3>' +
       '<div class="setrow"><span>자동 잠금</span><select class="select" style="width:auto;min-width:9em" data-ch="lock-sec">' + [['0', '앱을 나가면 바로'], ['30', '30초 후'], ['60', '1분 후'], ['300', '5분 후'], ['-1', '자동 잠금 안 함']].map(function (o) { return '<option value="' + o[0] + '"' + (lockSec === o[0] ? ' selected' : '') + '>' + o[1] + '</option>'; }).join('') + '</select></div>' +
+      '<div class="setrow" id="bio-row"><span>Face ID로 열기</span><button class="sw" data-act="bio-toggle" role="switch" aria-checked="' + (AB.lock && AB.lock.bioOn()) + '" aria-label="Face ID로 열기"><i></i></button></div>' +
       '<div class="setrow"><span>PIN 변경</span><button class="btn sm soft" data-act="pin-change">변경</button></div>' +
       '<div class="setrow"><span>지금 잠그기</span><button class="btn sm ghost" data-act="lock">잠금</button></div>' +
       '<p class="hint" style="margin-top:6px">PIN은 화면을 가리는 잠금이에요(데이터 암호화가 아닙니다). 기기 자체 잠금과 함께 쓰세요.</p></div>';
@@ -97,6 +98,14 @@
   }
 
   UI.views.settings = { render: render };
+  UI.actions['bio-toggle'] = async function () {
+    var L = AB.lock;
+    if (L.bioOn()) { L.bioDisable(); UI.toast('Face ID를 껐어요 · PIN으로 열어요'); UI.render(); return; }
+    if (!(await L.bioSupported())) { UI.toast('이 기기·주소에서는 Face ID를 쓸 수 없어요', { kind: 'err' }); return; }
+    try { await L.bioEnable(); UI.toast('Face ID를 켰어요 · 다음부터 얼굴로 열려요', { kind: 'ok' }); }
+    catch (e) { UI.toast('Face ID 등록이 취소됐어요'); }
+    UI.render();
+  };
   UI.actions['sw-check'] = async function () {
     if (!navigator.serviceWorker) return UI.toast('이 브라우저는 자동 업데이트를 지원하지 않아요');
     UI.toast('새 버전을 찾는 중…');

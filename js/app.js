@@ -2,7 +2,7 @@
 (function (root) {
   'use strict';
   var AB = root.AB, U = AB.util, St = AB.store, Sy = AB.sync, UI = AB.ui;
-  AB.VERSION = '3.1.1';
+  AB.VERSION = '4.0.1';
   var $ = function (s) { return document.querySelector(s); };
 
   function ls(k, v) {
@@ -30,6 +30,24 @@
     var salt = hex(root.crypto.getRandomValues(new Uint8Array(16))), iter = 150000;
     ls('ab.pin', JSON.stringify({ salt: salt, iter: iter, len: pin.length, hash: await hashPin(pin, salt, iter) }));
   };
+  /* ───── Face ID (아이폰 기본 생체 인증 · WebAuthn) — 얼굴 정보는 기기 밖으로 나가지 않음. 화면 잠금용 ───── */
+  function b64u(buf) { var s = ''; new Uint8Array(buf).forEach(function (b) { s += String.fromCharCode(b); }); return btoa(s).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, ''); }
+  function unb64u(str) { str = str.replace(/-/g, '+').replace(/_/g, '/'); while (str.length % 4) str += '='; var bin = atob(str), a = new Uint8Array(bin.length); for (var i = 0; i < bin.length; i++) a[i] = bin.charCodeAt(i); return a; }
+  L.bioSupported = async function () { try { return !!(root.PublicKeyCredential && location.protocol === 'https:' && await root.PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable()); } catch (e) { return false; } };
+  L.bioOn = function () { return !!ls('ab.bio'); };
+  L.bioEnable = async function () {
+    var cred = await navigator.credentials.create({ publicKey: {
+      rp: { name: '내 하루장', id: location.hostname }, user: { id: root.crypto.getRandomValues(new Uint8Array(16)), name: '내 하루장', displayName: '내 하루장' },
+      challenge: root.crypto.getRandomValues(new Uint8Array(32)), pubKeyCredParams: [{ type: 'public-key', alg: -7 }, { type: 'public-key', alg: -257 }],
+      authenticatorSelection: { authenticatorAttachment: 'platform', userVerification: 'required', residentKey: 'discouraged' }, timeout: 60000, attestation: 'none' } });
+    ls('ab.bio', b64u(cred.rawId)); return true;
+  };
+  L.bioDisable = function () { ls('ab.bio', null); };
+  L.bioVerify = async function () {
+    var id = ls('ab.bio'); if (!id) return false;
+    var a = await navigator.credentials.get({ publicKey: { challenge: root.crypto.getRandomValues(new Uint8Array(32)), rpId: location.hostname, allowCredentials: [{ type: 'public-key', id: unb64u(id), transports: ['internal'] }], userVerification: 'required', timeout: 60000 } });
+    return !!a;
+  };
   L.verify = async function (pin) { var p = stored(); return !!p && (await hashPin(pin, p.salt, p.iter)) === p.hash; };
 
   var lk = { mode: 'unlock', buf: '', first: '', busy: false };
@@ -45,9 +63,17 @@
     var keys = ['1', '2', '3', '4', '5', '6', '7', '8', '9', 'C', '0', '⌫'].map(function (k) { return '<button type="button" data-k="' + k + '" aria-label="' + (k === 'C' ? '모두 지우기' : k === '⌫' ? '한 칸 지우기' : k) + '">' + k + '</button>'; }).join('');
     return '<img class="avatar" id="lk-avatar" src="' + AVATAR + '" alt="" onerror="this.replaceWith(Object.assign(document.createElement(\'div\'),{className:\'avatar\',innerHTML:\'<div style=&quot;font-size:40px;line-height:78px&quot;>📒</div>\'}))">' +
       '<h2>' + (setup ? 'PIN 설정' : '내 하루장') + '</h2><p id="lk-msg">' + msg + '</p><div class="pin-dots" id="lk-dots">' + dots + '</div><div class="keypad">' + keys + '</div>' +
-      (setup ? '<button type="button" class="btn" id="lk-ok" style="margin-top:18px;min-width:180px;background:#fff;color:#234A42" ' + (lk.buf.length >= 4 ? '' : 'disabled') + '>' + (lk.first ? '확인' : '다음') + '</button>' : '<button type="button" class="link" id="lk-forgot">PIN을 잊었어요</button>');
+      (setup ? '<button type="button" class="btn" id="lk-ok" style="margin-top:18px;min-width:180px;background:#fff;color:#234A42" ' + (lk.buf.length >= 4 ? '' : 'disabled') + '>' + (lk.first ? '확인' : '다음') + '</button>' : (L.bioOn() ? '<button type="button" class="lk-bio" id="lk-bio"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 8V5a1 1 0 011-1h3M16 4h3a1 1 0 011 1v3M20 16v3a1 1 0 01-1 1h-3M8 20H5a1 1 0 01-1-1v-3"/><path d="M9 9v1M15 9v1M12 9v4h-1M9.5 15.5a4 4 0 005 0"/></svg>Face ID로 열기</button>' : '') + '<button type="button" class="link" id="lk-forgot">PIN을 잊었어요</button>');
   }
   function draw() { var el = $('#lock'); el.innerHTML = lockHtml(); el.hidden = false; }
+  function paintDots() {
+    var box = $('#lk-dots'); if (!box) return draw();
+    var p = stored(), len = lk.mode === 'setup' ? Math.max(lk.buf.length, 4) : (p ? p.len : 4);
+    if (box.children.length !== len) { var h = ''; for (var i = 0; i < len; i++) h += '<i></i>'; box.innerHTML = h; }
+    [].forEach.call(box.children, function (d, i) { d.classList.toggle('f', i < lk.buf.length); });
+    box.classList.remove('shake');
+    var ok = $('#lk-ok'); if (ok) ok.disabled = lk.buf.length < 4;
+  }
 
   L.show = function (mode) { lk.mode = mode; lk.buf = ''; lk.first = ''; draw(); };
   L.lockNow = function () { if (!L.hasPin()) return; UI.closeSheet();
@@ -57,6 +83,8 @@
   function unlocked() {
     $('#lock').hidden = true; $('#lock').innerHTML = ''; $('#app').hidden = false; $('#app').removeAttribute('aria-hidden');
     UI.render(); Sy.start();
+    if (!L.bioOn() && !ls('ab.bioAsk')) L.bioSupported().then(function (ok) { if (!ok) return; ls('ab.bioAsk', '1');
+      UI.toast('다음부터 Face ID로 열까요?', { ms: 9000, action: { label: '켜기', fn: function () { L.bioEnable().then(function () { UI.toast('Face ID를 켰어요', { kind: 'ok' }); }).catch(function () { UI.toast('Face ID 등록이 취소됐어요'); }); } } }); });
   }
   async function submit() {
     if (lk.busy) return; lk.busy = true;
@@ -71,8 +99,8 @@
       if (await L.verify(lk.buf)) { ls('ab.fail', '0'); ls('ab.until', '0'); unlocked(); return; }
       var f = (+(ls('ab.fail') || 0)) + 1; ls('ab.fail', String(f));
       if (f >= 5) { ls('ab.until', String(Date.now() + Math.min(300, 15 * (f - 4)) * 1000)); }
-      lk.buf = ''; draw();
-      var dots = $('#lk-dots'); if (dots) { dots.classList.add('shake'); }
+      lk.buf = ''; paintDots();
+      var dots = $('#lk-dots'); if (dots) { void dots.offsetWidth; dots.classList.add('shake'); }
       $('#lk-msg').textContent = f >= 5 ? 'PIN을 여러 번 틀렸어요. 잠시 후 다시 시도하세요' : 'PIN이 맞지 않아요 (' + f + '/5)';
       if (navigator.vibrate) navigator.vibrate(60);
     } finally { lk.busy = false; }
@@ -83,14 +111,19 @@
     else if (lk.buf.length < 8) lk.buf += k;
     else return;
     var p = stored();
-    if (lk.mode === 'unlock' && p && lk.buf.length === p.len) { draw(); submit(); return; }
-    var msg = $('#lk-msg') && $('#lk-msg').textContent; draw(); if ($('#lk-msg') && msg && lk.mode === 'unlock') $('#lk-msg').textContent = msg;
+    if (lk.mode === 'unlock' && p && lk.buf.length === p.len) { paintDots(); submit(); return; }
+    paintDots(); // 점만 바꿈 — 화면 전체를 다시 그리면 프로필 사진이 깜박임
   }
   function bindLock() {
     $('#lock').addEventListener('click', async function (e) {
       var b = e.target.closest('[data-k]');
       if (b) { press(b.dataset.k); return; }
       if (e.target.id === 'lk-ok' && lk.buf.length >= 4) { submit(); return; }
+      if (e.target.closest('#lk-bio')) {
+        try { if (await L.bioVerify()) { ls('ab.fail', '0'); unlocked(); return; } }
+        catch (err) { var m = $('#lk-msg'); if (m) m.textContent = 'Face ID가 취소됐어요 · PIN을 입력하세요'; }
+        return;
+      }
       if (e.target.id === 'lk-forgot') {
         if (await UI.confirm('PIN을 잊으셨나요?\n이 기기의 내역·설정·시트 연결 정보를 모두 지우고 처음부터 다시 시작합니다.\n(구글 시트의 데이터는 그대로 있어요. 다시 연결하면 모두 돌아옵니다.)', { danger: true, ok: '이 기기 초기화' })) {
           await St.wipe(); ['ab.url', 'ab.token', 'ab.pin', 'ab.fail', 'ab.until', 'ab.lockSec', 'ab.theme'].forEach(function (k) { ls(k, null); }); location.reload();
@@ -124,13 +157,13 @@
         UI.toast('새 버전이 준비됐어요', { ms: 12000, action: { label: '지금 적용', fn: function () { apply(w); } } });
         document.addEventListener('visibilitychange', function f() { if (document.visibilityState === 'hidden') { document.removeEventListener('visibilitychange', f); apply(w); } });
       }
-      document.addEventListener('visibilitychange', function () { if (document.visibilityState === 'visible') reg.update().catch(function () {}); });
+      document.addEventListener('visibilitychange', function () { if (document.visibilityState === 'visible' && reg) reg.update().catch(function () {}); });
       if (reg.waiting && navigator.serviceWorker.controller) offer(reg.waiting);
       reg.addEventListener('updatefound', function () {
         var w = reg.installing; if (!w) return;
         w.addEventListener('statechange', function () { if (w.state === 'installed' && navigator.serviceWorker.controller) offer(w); });
       });
-      setInterval(function () { reg.update().catch(function () { /* 오프라인 */ }); }, 60 * 60 * 1000);
+      setInterval(function () { if (reg) reg.update().catch(function () { /* 오프라인 */ }); }, 60 * 60 * 1000);
     }).catch(function (e) { console.warn('서비스 워커 등록 실패', e); });
   }
 

@@ -1,12 +1,12 @@
 /* 서비스 워커 — 앱 껍데기를 기기에 저장해 오프라인에서도 열리게 합니다.
  * ★ 파일을 고쳐 GitHub 에 올릴 때마다 아래 VERSION 숫자를 올리세요. (모든 기기가 새 버전으로 갱신됩니다)
  */
-const VERSION = '3.1.1';
+const VERSION = '4.0.1';
 const CACHE = 'gagyebu-' + VERSION;
 const SHELL = [
   './', 'index.html', 'manifest.json', 'css/app.css',
   'js/util.js', 'js/calc.js', 'js/smart.js', 'js/store.js', 'js/history.js', 'js/sync.js', 'js/side.js', 'js/charts.js', 'js/xlsx-io.js',
-  'js/ui-core.js', 'js/ui-shell.js', 'js/ui-home.js', 'js/ui-entries.js', 'js/ui-add.js', 'js/ui-analysis.js', 'js/ui-settings.js', 'js/ui-life.js', 'js/app.js',
+  'js/ui-core.js', 'js/ui-shell.js', 'js/ui-home.js', 'js/ui-entries.js', 'js/ui-add.js', 'js/ui-analysis.js', 'js/ui-settings.js', 'js/ui-life.js', 'js/ui-day.js', 'js/app.js',
   'assets/photo.jpg', 'icons/icon-192.png', 'icons/icon-512.png', 'icons/icon-maskable-512.png', 'icons/apple-touch-icon.png', 'icons/favicon-32.png',
   'vendor/xlsx.full.min.js'
 ];

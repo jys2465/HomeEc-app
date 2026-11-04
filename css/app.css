@@ -337,3 +337,87 @@ html.sheet-open, html.sheet-open body { overflow: hidden !important; }
 .chip.on { background: var(--brand); color: var(--brand-ink); }
 @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .tile, :root:not([data-theme="light"]) .arow .dot, :root:not([data-theme="light"]) .st { color: #0E1412; } }
 :root[data-theme="dark"] .tile, :root[data-theme="dark"] .arow .dot, :root[data-theme="dark"] .st { color: #0E1412; }
+/* 3.1.2 — 잠금 화면: 앱이 숨겨진 동안 문서가 짧아 아래가 비던 문제 → 큰 화면 높이로 채우고, 바탕도 잠금 색으로 */
+.lock { bottom: auto !important; min-height: 100vh; min-height: 100lvh; height: 100lvh; }
+html:has(#lock:not([hidden])), html:has(#lock:not([hidden])) body { background: #3E7366 !important; }
+body { min-height: 100vh; min-height: 100lvh; }
+
+/* 4.0 잠금: Face ID 단추 */
+.lk-bio { margin-top: 18px; display: inline-flex; align-items: center; gap: 8px; padding: 11px 20px; border-radius: 99px; background: rgba(255,255,255,.16); color: #fff; font-weight: 700; font-size: .92rem; }
+.lock .avatar { will-change: auto; }
+
+/* ===================== 4.0 — 큰 제목 머리 · 큰 달 막대 · 하루 탭 ===================== */
+.top { padding: calc(var(--safe-t) + 6px) 16px 8px !important; align-items: flex-end !important; border-bottom: 0 !important; }
+.top .tt { min-width: 0; }
+.top .tsub { font-size: .78rem; color: var(--ink2); font-weight: 600; white-space: nowrap; min-height: 1.1em; }
+.top .ttl { font-size: 1.9rem; line-height: 1.12; font-weight: 900; letter-spacing: -.03em; margin: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.top .cbtn { width: 40px !important; height: 40px !important; background: var(--card); color: var(--ink); margin-bottom: 2px; }
+.mbtn .wdot { position: absolute; top: 4px; right: 4px; width: 9px; height: 9px; border-radius: 50%; background: var(--expense); box-shadow: 0 0 0 2px var(--card); }
+.toolbar { top: calc(64px + var(--safe-t)) !important; }
+.monbar { display: flex; align-items: center; justify-content: space-between; background: var(--card); border-radius: 16px; padding: 6px; margin-bottom: 12px; gap: 6px; }
+.monbar > button:not(.mt) { width: 52px; height: 46px; border-radius: 12px; display: grid; place-items: center; background: var(--track); color: var(--ink); flex: none; }
+.monbar .mt { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 46px; }
+.monbar .mt b { font-size: 1.3rem; font-weight: 800; letter-spacing: -.01em; white-space: nowrap; }
+.monbar .mt span { font-size: .7rem; color: var(--brand); font-weight: 700; }
+/* 주간 띠 */
+.week { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; padding: 10px 6px 6px; }
+.week > button { display: flex; flex-direction: column; align-items: center; gap: 3px; padding: 4px 0; border-radius: 12px; min-width: 0; }
+.week .w { font-size: .72rem; color: var(--ink3); font-weight: 700; }
+.week .dd { font-size: 1.08rem; font-weight: 800; width: 36px; height: 36px; display: grid; place-items: center; border-radius: 50%; }
+.week .sat .w, .week .sat .dd { color: var(--blue); } .week .sun .w, .week .sun .dd { color: var(--expense); }
+.week .today:not(.sel) .dd { box-shadow: inset 0 0 0 2px var(--brand); color: var(--brand); }
+.week .sel .dd { background: var(--brand); color: var(--brand-ink) !important; }
+.week .dots { display: flex; gap: 2px; height: 6px; } .week .dots i { width: 5px; height: 5px; border-radius: 50%; }
+.wfoot { grid-column: 1 / -1; display: flex; justify-content: center; gap: 16px; padding-top: 4px; }
+.wfoot button { display: inline-flex; align-items: center; gap: 5px; font-size: .8rem; font-weight: 700; color: var(--ink2); padding: 6px 8px; }
+.wfoot button + button { color: var(--brand); }
+/* 한 달 달력 (월요일 시작) */
+.mcal { padding: 10px 6px; }
+.mhd { display: flex; align-items: center; gap: 6px; padding: 0 6px 8px; } .mhd b { flex: 1; font-size: 1.1rem; font-weight: 800; text-align: center; }
+.mg { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; }
+.mg .h { text-align: center; font-size: .72rem; color: var(--ink3); font-weight: 700; padding: 4px 0; } .mg .h.sat { color: var(--blue); } .mg .h.sun { color: var(--expense); }
+.mg > button { min-height: 62px; border-radius: 10px; display: flex; flex-direction: column; align-items: stretch; padding: 3px 2px; overflow: hidden; min-width: 0; }
+.mg .dn { font-size: .84rem; font-weight: 800; text-align: center; width: 24px; height: 24px; line-height: 24px; border-radius: 50%; margin: 0 auto; }
+.mg .sat .dn { color: var(--blue); } .mg .sun .dn { color: var(--expense); }
+.mg .today .dn { background: var(--expense); color: #fff !important; }
+.mg .sel { background: var(--brand-soft); box-shadow: inset 0 0 0 1.5px var(--brand); }
+.mg .lb { display: block; font-style: normal; font-size: .56rem; font-weight: 800; line-height: 13px; height: 13px; white-space: nowrap; overflow: hidden; border-radius: 4px; padding: 0 3px; margin-top: 1px; color: #fff; text-align: left; }
+.mg .lb.s { border-radius: 4px 0 0 4px; margin-right: -2px; } .mg .lb.e { border-radius: 0 4px 4px 0; margin-left: -2px; } .mg .lb.m { border-radius: 0; margin: 1px -2px 0; }
+.mg .hn { font-size: .52rem; color: var(--expense); text-align: center; white-space: nowrap; overflow: hidden; }
+.mg .ex { font-size: .58rem; color: var(--ink2); text-align: center; white-space: nowrap; margin-top: auto; }
+.mg .more2 { font-size: .55rem; color: var(--ink2); text-align: center; font-weight: 700; }
+.mg .ndot { width: 5px; height: 5px; border-radius: 50%; background: var(--note); margin: auto auto 2px; }
+.mfoot { text-align: center; padding-top: 6px; white-space: normal; }
+/* 남은 예산 */
+.hero2 { display: block; width: 100%; text-align: left; }
+.hero2 .lbl { font-size: .84rem; font-weight: 700; color: var(--ink2); }
+.pbar { height: 10px; border-radius: 9px; background: var(--track); position: relative; overflow: hidden; margin: 10px 0 6px; }
+.pbar i { position: absolute; left: 0; top: 0; bottom: 0; border-radius: 9px; background: var(--brand); }
+.pbar em { position: absolute; top: 0; bottom: 0; width: 2px; background: var(--ink); }
+.daily { display: flex; align-items: center; gap: 10px; background: var(--brand-soft); border-radius: 12px; padding: 10px 12px; margin-top: 10px; }
+.daily b { font-size: 1.12rem; } .daily.bad { background: var(--expense-soft); color: var(--expense); }
+/* 시간 타임라인 */
+.tline { position: relative; padding-left: 58px; }
+.tline::before { content: ""; position: absolute; left: 49px; top: 6px; bottom: 6px; width: 2px; background: var(--line); }
+.tg { position: relative; padding: 5px 0; }
+.tg > .tm { position: absolute; left: -58px; top: 16px; width: 42px; text-align: right; font-size: .76rem; font-weight: 800; color: var(--ink2); line-height: 1.15; }
+.tg > .tm.none { color: var(--ink3); font-weight: 600; font-size: .7rem; top: 12px; }
+.tgi { display: flex; flex-direction: column; gap: 6px; }
+.tev { display: flex; align-items: center; gap: 10px; width: 100%; text-align: left; background: var(--card); border-radius: 14px; padding: 10px 12px; position: relative; }
+.tev::before { content: ""; position: absolute; left: -14px; top: 50%; width: 10px; height: 10px; margin-top: -5px; border-radius: 50%; background: var(--c); box-shadow: 0 0 0 3px var(--bg); }
+.tev .ic { width: 32px; height: 32px; border-radius: 10px; display: grid; place-items: center; color: #fff; background: var(--c); flex: none; }
+.tev .ic .ic2 { width: 18px; height: 18px; }
+.tev > b { white-space: nowrap; font-weight: 800; }
+.nowl { position: relative; height: 2px; background: var(--expense); margin: 8px 0 8px -10px; }
+.nowl span { position: absolute; left: -48px; top: -8px; width: 42px; text-align: right; font-size: .7rem; font-weight: 800; color: var(--expense); }
+.empty1 { margin: 0; color: var(--ink2); font-size: .88rem; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .tev .ic { color: #0E1412; } }
+:root[data-theme="dark"] .tev .ic { color: #0E1412; }
+
+/* 4.0.1 — QA */
+.daily b, .daily .num { white-space: nowrap; }
+.daily .grow { min-width: 0; }
+.mg .lb { text-overflow: ellipsis; }
+.mg .lb.s { margin-right: -3px !important; } .mg .lb.e { margin-left: -3px !important; } .mg .lb.m { margin: 1px -3px 0 !important; }
+.tev > b.zero { color: var(--ink3); font-weight: 600; font-size: .78rem; }
+.bgt { min-width: 0; overflow: hidden; } .gauge { max-width: 100%; }

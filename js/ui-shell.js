@@ -144,6 +144,9 @@
     if (root.matchMedia && root.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
     document.querySelectorAll('#view .countup').forEach(function (el) {
       var to = +el.dataset.to, st = null; if (!isFinite(to) || el.dataset.done) return; el.dataset.done = '1';
+      var key = UI.S.tab + ':' + (el.dataset.key || 'n'); UI._cu = UI._cu || {};
+      if (UI._cu[key] === to) { el.textContent = U.num(to); return; } UI._cu[key] = to; // 같은 값이면 다시 세지 않음
+      if (UI._cu[key] === to) { el.textContent = U.num(to); return; } UI._cu[key] = to; // 같은 값이면 다시 세지 않음
       function f(t) { if (!st) st = t; var k = Math.min(1, (t - st) / 700); el.textContent = U.num(to * (1 - Math.pow(1 - k, 3))); if (k < 1) requestAnimationFrame(f); else { el.classList.remove('pop'); void el.offsetWidth; el.classList.add('pop'); fitAll(); } }
       requestAnimationFrame(f);
     });
