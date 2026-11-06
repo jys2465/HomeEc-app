@@ -6,6 +6,7 @@
   var esc = U.esc, $ = UI.$, S = UI.S;
   var WD = ['월', '화', '수', '목', '금', '토', '일'];
   var P3 = { day: '<rect x="3.5" y="5" width="17" height="15" rx="3"/><path d="M3.5 10h17M8 3v4M16 3v4"/><circle cx="12" cy="15" r="1.6"/>',
+    lock: '<rect x="5" y="10.5" width="14" height="10" rx="2.5"/><path d="M8 10.5V8a4 4 0 018 0v2.5"/>',
     gear: '<circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M4.9 19.1L7 17M17 7l2.1-2.1"/>',
     check: '<path d="M5 12.5l4.5 4.5L19 7"/>',
     link: '<path d="M10 14a4 4 0 005.7 0l3-3a4 4 0 00-5.7-5.7l-1 1"/><path d="M14 10a4 4 0 00-5.7 0l-3 3a4 4 0 005.7 5.7l1-1"/>' };
@@ -27,7 +28,7 @@
     var st = Sy.status(), warn = St.conflicts().length || st.state === 'error' || st.pending > 0 || (X && X.pending() > 0);
     $('#top').innerHTML = '<div class="tt grow"><div class="tsub">' + esc(sub) + '</div><h1 class="ttl">' + esc(title) + '</h1></div>' +
       (t === 'settings' ? '<button class="cbtn" data-act="tab" data-tab="home" aria-label="닫기">' + UI.ic('x', 2.4) + '</button>' :
-      '<button class="cbtn mbtn" data-act="more" aria-label="더보기 · 설정 · 최근 변경 · 동기화">' + UI.ic('more', 2.6) + (warn ? '<span class="wdot"></span>' : '') + '</button>');
+      '<button class="cbtn" data-act="lock-now" aria-label="잠그기 (로그아웃)">' + UI.ic('lock', 2.2) + '</button><button class="cbtn mbtn" data-act="more" aria-label="더보기 · 설정 · 최근 변경 · 동기화">' + UI.ic('more', 2.6) + (warn ? '<span class="wdot"></span>' : '') + '</button>');
   };
 
   /* ───── ⋯ 더보기 ───── */

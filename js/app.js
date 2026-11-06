@@ -2,7 +2,7 @@
 (function (root) {
   'use strict';
   var AB = root.AB, U = AB.util, St = AB.store, Sy = AB.sync, UI = AB.ui;
-  AB.VERSION = '4.0.1';
+  AB.VERSION = '4.0.2';
   var $ = function (s) { return document.querySelector(s); };
 
   function ls(k, v) {
@@ -35,6 +35,8 @@
   function unb64u(str) { str = str.replace(/-/g, '+').replace(/_/g, '/'); while (str.length % 4) str += '='; var bin = atob(str), a = new Uint8Array(bin.length); for (var i = 0; i < bin.length; i++) a[i] = bin.charCodeAt(i); return a; }
   L.bioSupported = async function () { try { return !!(root.PublicKeyCredential && location.protocol === 'https:' && await root.PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable()); } catch (e) { return false; } };
   L.bioOn = function () { return !!ls('ab.bio'); };
+  L.bioOk = false; L.bioSupported().then(function (ok) { L.bioOk = ok; if (ok && !$('#lock').hidden && !$('#lk-bio')) { var f = $('#lk-forgot'); if (f) f.insertAdjacentHTML('beforebegin', bioBtn()); } });
+  L.bioErr = function (e) { var n = e && e.name; return n === 'NotAllowedError' ? '취소됐거나 시간이 지났어요' : n === 'InvalidStateError' ? '이미 등록돼 있어요 · 설정에서 껐다 켜 보세요' : n === 'SecurityError' ? '이 주소에서는 쓸 수 없어요 (https 주소 필요)' : '아이폰 설정 › [내 이름] › iCloud › 암호 및 키체인이 켜져 있어야 해요'; };
   L.bioEnable = async function () {
     var cred = await navigator.credentials.create({ publicKey: {
       rp: { name: '내 하루장', id: location.hostname }, user: { id: root.crypto.getRandomValues(new Uint8Array(16)), name: '내 하루장', displayName: '내 하루장' },
@@ -48,6 +50,19 @@
     var a = await navigator.credentials.get({ publicKey: { challenge: root.crypto.getRandomValues(new Uint8Array(32)), rpId: location.hostname, allowCredentials: [{ type: 'public-key', id: unb64u(id), transports: ['internal'] }], userVerification: 'required', timeout: 60000 } });
     return !!a;
   };
+  function bioBtn() { return '<button type="button" class="lk-bio" id="lk-bio"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 8V5a1 1 0 011-1h3M16 4h3a1 1 0 011 1v3M20 16v3a1 1 0 01-1 1h-3M8 20H5a1 1 0 01-1-1v-3"/><path d="M9 9v1M15 9v1M12 9v4h-1M9.5 15.5a4 4 0 005 0"/></svg>Face ID로 열기</button>'; }
+  /* PIN으로 연 직후 시트로 Face ID 켜기를 권함 (아이폰은 '누르는 동작' 안에서만 등록 창을 띄움) */
+  L.bioOffer = function () {
+    UI.sheet('<div class="sh"><b>Face ID로 열기</b></div><p class="hint" style="white-space:normal;margin-bottom:12px">다음부터 PIN 대신 얼굴로 열 수 있어요. 얼굴 정보는 이 아이폰 밖으로 나가지 않아요.</p>' +
+      '<button class="btn block" id="bio-yes" data-act="bio-yes">Face ID 켜기</button><button class="btn ghost block" style="margin-top:8px" data-act="bio-later">나중에</button><button class="link" style="display:block;margin:10px auto 0;color:var(--ink3)" data-act="bio-never">다시 묻지 않기</button>');
+  };
+  UI.actions['bio-yes'] = function () {
+    L.bioEnable().then(function () { ls('ab.bioWant', null); ls('ab.bioAsk', 'no'); UI.closeSheet(); UI.toast('Face ID를 켰어요 · 다음부터 얼굴로 열려요', { kind: 'ok' }); })
+      .catch(function (e) { UI.toast('Face ID를 켜지 못했어요 · ' + L.bioErr(e), { kind: 'err', ms: 8000 }); });
+  };
+  UI.actions['bio-later'] = function () { ls('ab.bioWant', null); UI.closeSheet(); };
+  UI.actions['bio-never'] = function () { ls('ab.bioWant', null); ls('ab.bioAsk', 'no'); UI.closeSheet(); UI.toast('설정 › Face ID로 열기에서 언제든 켤 수 있어요'); };
+  UI.actions['lock-now'] = function () { if (!L.hasPin()) return UI.toast('PIN을 먼저 정해 주세요 (설정 › 잠금)'); L.lockNow(); };
   L.verify = async function (pin) { var p = stored(); return !!p && (await hashPin(pin, p.salt, p.iter)) === p.hash; };
 
   var lk = { mode: 'unlock', buf: '', first: '', busy: false };
@@ -63,7 +78,7 @@
     var keys = ['1', '2', '3', '4', '5', '6', '7', '8', '9', 'C', '0', '⌫'].map(function (k) { return '<button type="button" data-k="' + k + '" aria-label="' + (k === 'C' ? '모두 지우기' : k === '⌫' ? '한 칸 지우기' : k) + '">' + k + '</button>'; }).join('');
     return '<img class="avatar" id="lk-avatar" src="' + AVATAR + '" alt="" onerror="this.replaceWith(Object.assign(document.createElement(\'div\'),{className:\'avatar\',innerHTML:\'<div style=&quot;font-size:40px;line-height:78px&quot;>📒</div>\'}))">' +
       '<h2>' + (setup ? 'PIN 설정' : '내 하루장') + '</h2><p id="lk-msg">' + msg + '</p><div class="pin-dots" id="lk-dots">' + dots + '</div><div class="keypad">' + keys + '</div>' +
-      (setup ? '<button type="button" class="btn" id="lk-ok" style="margin-top:18px;min-width:180px;background:#fff;color:#234A42" ' + (lk.buf.length >= 4 ? '' : 'disabled') + '>' + (lk.first ? '확인' : '다음') + '</button>' : (L.bioOn() ? '<button type="button" class="lk-bio" id="lk-bio"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 8V5a1 1 0 011-1h3M16 4h3a1 1 0 011 1v3M20 16v3a1 1 0 01-1 1h-3M8 20H5a1 1 0 01-1-1v-3"/><path d="M9 9v1M15 9v1M12 9v4h-1M9.5 15.5a4 4 0 005 0"/></svg>Face ID로 열기</button>' : '') + '<button type="button" class="link" id="lk-forgot">PIN을 잊었어요</button>');
+      (setup ? '<button type="button" class="btn" id="lk-ok" style="margin-top:18px;min-width:180px;background:#fff;color:#234A42" ' + (lk.buf.length >= 4 ? '' : 'disabled') + '>' + (lk.first ? '확인' : '다음') + '</button>' : ((L.bioOn() || L.bioOk) && !setup ? bioBtn() : '') + (false ? '<button type="button" class="lk-bio" id="lk-bio"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 8V5a1 1 0 011-1h3M16 4h3a1 1 0 011 1v3M20 16v3a1 1 0 01-1 1h-3M8 20H5a1 1 0 01-1-1v-3"/><path d="M9 9v1M15 9v1M12 9v4h-1M9.5 15.5a4 4 0 005 0"/></svg>Face ID로 열기</button>' : '') + '<button type="button" class="link" id="lk-forgot">PIN을 잊었어요</button>');
   }
   function draw() { var el = $('#lock'); el.innerHTML = lockHtml(); el.hidden = false; }
   function paintDots() {
@@ -83,8 +98,7 @@
   function unlocked() {
     $('#lock').hidden = true; $('#lock').innerHTML = ''; $('#app').hidden = false; $('#app').removeAttribute('aria-hidden');
     UI.render(); Sy.start();
-    if (!L.bioOn() && !ls('ab.bioAsk')) L.bioSupported().then(function (ok) { if (!ok) return; ls('ab.bioAsk', '1');
-      UI.toast('다음부터 Face ID로 열까요?', { ms: 9000, action: { label: '켜기', fn: function () { L.bioEnable().then(function () { UI.toast('Face ID를 켰어요', { kind: 'ok' }); }).catch(function () { UI.toast('Face ID 등록이 취소됐어요'); }); } } }); });
+    if (!L.bioOn() && L.bioOk && (ls('ab.bioWant') || ls('ab.bioAsk') !== 'no')) setTimeout(L.bioOffer, 400);
   }
   async function submit() {
     if (lk.busy) return; lk.busy = true;
@@ -120,8 +134,10 @@
       if (b) { press(b.dataset.k); return; }
       if (e.target.id === 'lk-ok' && lk.buf.length >= 4) { submit(); return; }
       if (e.target.closest('#lk-bio')) {
+        var m = $('#lk-msg');
+        if (!L.bioOn()) { ls('ab.bioWant', '1'); if (m) m.textContent = 'PIN으로 한 번 열면 바로 Face ID를 켤 수 있어요'; return; }
         try { if (await L.bioVerify()) { ls('ab.fail', '0'); unlocked(); return; } }
-        catch (err) { var m = $('#lk-msg'); if (m) m.textContent = 'Face ID가 취소됐어요 · PIN을 입력하세요'; }
+        catch (err) { if (m) m.textContent = 'Face ID: ' + L.bioErr(err) + ' · PIN을 입력하세요'; }
         return;
       }
       if (e.target.id === 'lk-forgot') {

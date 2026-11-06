@@ -35,6 +35,7 @@
       '<div class="r"><span class="st" style="background:#3A3F48">' + UI.ic('eye', 2) + '</span><span class="t">화면</span><div class="seg2" style="width:138px">' + [['auto', '자동'], ['light', '밝게'], ['dark', '어둡게']].map(function (x) { return '<button class="' + (theme === x[0] ? 'on' : '') + '" data-act="theme" data-v="' + x[0] + '">' + x[1] + '</button>'; }).join('') + '</div></div>' +
       '<div class="r"><span class="st" style="background:var(--warn)">' + UI.ic('card', 2) + '</span><span class="t">자금 부족에 카드 포함</span><button class="sw" data-act="card-short" role="switch" aria-checked="' + UI.cardShort() + '" aria-label="자금 부족에 카드 포함"><i></i></button></div>' +
       '<div class="r"><span class="st" style="background:var(--ink2)">' + UI.ic('eye', 2) + '</span><span class="t">금액 가리기</span><button class="sw" data-act="hide-amt" role="switch" aria-checked="' + UI.hidden() + '" aria-label="금액 가리기"><i></i></button></div>' +
+      '<div class="r"><span class="st" style="background:var(--income)">' + UI.ic('check', 2) + '</span><span class="t">Face ID로 열기</span><button class="sw" data-act="bio-toggle" role="switch" aria-checked="' + (AB.lock && AB.lock.bioOn()) + '" aria-label="Face ID로 열기"><i></i></button></div>' +
       '<button class="r" data-act="hist"><span class="st" style="background:var(--blue)">' + UI.ic('history', 2) + '</span><span class="t">최근 변경 3건</span><span class="v">' + AB.history.activeCount() + '건</span>' + UI.CHEV + '</button></div>';
     var h = '<div class="card"><h3>구글 시트 연결 <span class="chip ' + (!st.configured ? '' : st.state === 'error' ? 'bad' : 'ok') + '">' + (st.configured ? (st.state === 'error' ? '오류' : '연결됨') : '미연결') + '</span></h3>' +
       '<div class="field"><label>웹 앱 URL</label><input id="set-url" class="input" type="url" placeholder="https://script.google.com/macros/s/…/exec" value="' + esc(Sy.getUrl()) + '" autocomplete="off" autocapitalize="off"></div>' +
@@ -57,7 +58,6 @@
     var conn = h; h = '';
     h += '<div class="card"><h3>보안</h3>' +
       '<div class="setrow"><span>자동 잠금</span><select class="select" style="width:auto;min-width:9em" data-ch="lock-sec">' + [['0', '앱을 나가면 바로'], ['30', '30초 후'], ['60', '1분 후'], ['300', '5분 후'], ['-1', '자동 잠금 안 함']].map(function (o) { return '<option value="' + o[0] + '"' + (lockSec === o[0] ? ' selected' : '') + '>' + o[1] + '</option>'; }).join('') + '</select></div>' +
-      '<div class="setrow" id="bio-row"><span>Face ID로 열기</span><button class="sw" data-act="bio-toggle" role="switch" aria-checked="' + (AB.lock && AB.lock.bioOn()) + '" aria-label="Face ID로 열기"><i></i></button></div>' +
       '<div class="setrow"><span>PIN 변경</span><button class="btn sm soft" data-act="pin-change">변경</button></div>' +
       '<div class="setrow"><span>지금 잠그기</span><button class="btn sm ghost" data-act="lock">잠금</button></div>' +
       '<p class="hint" style="margin-top:6px">PIN은 화면을 가리는 잠금이에요(데이터 암호화가 아닙니다). 기기 자체 잠금과 함께 쓰세요.</p></div>';
@@ -101,9 +101,9 @@
   UI.actions['bio-toggle'] = async function () {
     var L = AB.lock;
     if (L.bioOn()) { L.bioDisable(); UI.toast('Face ID를 껐어요 · PIN으로 열어요'); UI.render(); return; }
-    if (!(await L.bioSupported())) { UI.toast('이 기기·주소에서는 Face ID를 쓸 수 없어요', { kind: 'err' }); return; }
+    if (!L.bioOk) { UI.toast('이 기기·주소에서는 Face ID를 쓸 수 없어요 (https 주소 · iOS 16 이상)', { kind: 'err' }); return; }
     try { await L.bioEnable(); UI.toast('Face ID를 켰어요 · 다음부터 얼굴로 열려요', { kind: 'ok' }); }
-    catch (e) { UI.toast('Face ID 등록이 취소됐어요'); }
+    catch (e) { UI.toast('Face ID를 켜지 못했어요 · ' + L.bioErr(e), { kind: 'err', ms: 8000 }); }
     UI.render();
   };
   UI.actions['sw-check'] = async function () {

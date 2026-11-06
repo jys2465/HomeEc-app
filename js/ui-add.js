@@ -15,10 +15,10 @@
 
   function blank(p) {
     var d = UI.derive();
-    return { id: '', isNew: true, type: p.type || 'expense', date: p.date || d.today, repeat: '변동', category: '', usage: '', amount: +p.amount || 0, budget: 0, from: '', to: '', memo1: '', memo2: '', manual: p.amount ? { amount: true } : {}, orig: null };
+    return { id: '', isNew: true, type: p.type || 'expense', date: p.date || d.today, repeat: '변동', category: '', usage: '', amount: +p.amount || 0, budget: 0, from: '', to: '', memo1: '', memo2: '', manual: p.amount ? { amount: true } : {}, orig: null, tm: (function () { var n = new Date(); return U.pad(n.getHours()) + ':' + U.pad(n.getMinutes()); })() };
   }
   function fromRow(r) {
-    return { id: r.id, isNew: false, type: r.type, date: r.date, repeat: r.repeat, category: r.category, usage: r.usage, amount: r.type === 'budget' ? r.budget : r.amount, budget: r.budget, from: r.from, to: r.to, memo1: r.memo1, memo2: r.memo2, manual: { cat: true, from: true, to: true, repeat: true, amount: true }, orig: r };
+    return { tm: r.tm || '', id: r.id, isNew: false, type: r.type, date: r.date, repeat: r.repeat, category: r.category, usage: r.usage, amount: r.type === 'budget' ? r.budget : r.amount, budget: r.budget, from: r.from, to: r.to, memo1: r.memo1, memo2: r.memo2, manual: { cat: true, from: true, to: true, repeat: true, amount: true }, orig: r };
   }
   function catType() { return F.type === 'income' ? 'income' : 'expense'; }
 
@@ -66,6 +66,7 @@
       '<div class="field" id="f-from-wrap"><label id="f-from-label">출금 계정</label><div id="f-from-chips" class="chips"></div><select id="f-from" class="select" data-ch="f-from" style="margin-top:8px"></select></div>' +
       '<div class="field" id="f-to-wrap"><label id="f-to-label">입금 계정</label><div id="f-to-chips" class="chips"></div><select id="f-to" class="select" data-ch="f-to" style="margin-top:8px"></select></div>' +
       '<div class="field"><label>날짜</label><div class="row"><input id="f-date" type="date" class="input" data-ch="f-date" style="flex:1"><button type="button" class="chip" data-act="f-day" data-v="0">오늘</button><button type="button" class="chip" data-act="f-day" data-v="-1">어제</button><button type="button" class="chip" data-act="f-day" data-v="-2">그제</button></div></div>' +
+      '<div class="field"><label>시간 <span class="faint">(언제 썼는지 · 비우면 시간 없이)</span></label><div class="row"><input id="f-time" type="time" class="input" data-ch="f-time" style="flex:1"><button type="button" class="chip" data-act="f-tnow">지금</button><button type="button" class="chip" data-act="f-tclear">빼기</button></div></div>' +
       '<div class="field"><label>반복</label><div class="seg" id="f-repeat"><button type="button" data-act="f-repeat" data-v="변동">변동</button><button type="button" data-act="f-repeat" data-v="고정">고정</button></div><div class="hint" id="f-repeat-hint" style="margin-top:4px"></div></div>' +
       '<details class="more" id="f-more"><summary>더보기 · 예산금액 · 메모 · 문자 붙여넣기</summary>' +
       '<div class="field" id="f-budget-wrap" style="margin-top:8px"><label>예산금액 <span class="faint">(비우면 계획 없음)</span></label><input id="f-budget" class="input num" inputmode="numeric" data-in="f-budget" placeholder="0"></div>' +
@@ -99,6 +100,7 @@
     var am = $('#f-amount'); if (document.activeElement !== am) am.value = F.amount ? U.fmtInput(F.amount) : '';
     var us = $('#f-usage'); if (document.activeElement !== us) us.value = F.usage;
     var dt = $('#f-date'); if (dt.value !== F.date) dt.value = F.date;
+    var ftm = $('#f-time'); if (ftm && ftm.value !== (F.tm || '')) ftm.value = F.tm || '';
     suggest();
   }
 
@@ -130,6 +132,8 @@
     var s = String(text || '').trim(), out = { type: null, amount: null, date: null, usage: '' };
     if (!s) return out;
     var dm = s.match(/(오늘|내일|모레|어제|그제)/);
+    var tmm = s.match(/(오전|오후|아침|저녁|밤)?\s*(\d{1,2})시(?:\s*(\d{1,2})분|\s*반)?/);
+    if (tmm && +tmm[2] <= 24) { var hh = +tmm[2], mi = tmm[3] ? +tmm[3] : (/반/.test(tmm[0]) ? 30 : 0); if (/오후|저녁|밤/.test(tmm[1] || '') && hh < 12) hh += 12; out.tm = U.pad(hh % 24) + ':' + U.pad(Math.min(mi, 59)); s = s.replace(tmm[0], ' '); }
     if (dm) { out.date = U.addDays(today, { 오늘: 0, 내일: 1, 모레: 2, 어제: -1, 그제: -2 }[dm[1]]); s = s.replace(dm[0], ' '); }
     else { var nd = s.match(/(\d{1,2})\s*일(?!\s*씩)/); if (nd && +nd[1] >= 1 && +nd[1] <= 31) { var p = U.parse(today), dd = Math.min(+nd[1], U.daysInMonth(p.y, p.m)); out.date = U.ymd(p.y, p.m, dd); s = s.replace(nd[0], ' '); } }
     var m = s.match(/(\d[\d,]*(?:\.\d+)?)\s*(만|천)?\s*원?/);
@@ -147,9 +151,10 @@
     if (g.type && g.type !== F.type) { F.type = g.type; F.category = ''; F.from = ''; F.to = ''; F.manual = { amount: F.manual.amount }; }
     if (g.amount != null) { F.amount = g.amount; F.manual.amount = true; }
     F.date = g.date || U.today(); // 날짜 말이 없어지면 오늘로
+    if (g.tm) F.tm = g.tm;
     F.usage = g.usage; autoFill(F.usage); defaultAccounts(); refresh();
     var us = $('#f-usage'); if (us) us.value = F.usage;
-    if (hint) hint.textContent = T[F.type] + ' · ' + U.num(F.amount || 0) + '원 · ' + F.date.slice(5).replace('-', '/') + (F.category ? ' · ' + F.category : '') + (F.type === 'income' ? (F.to ? ' · ' + F.to : '') : F.type === 'transfer' ? ' · ' + (F.from || '?') + ' → ' + (F.to || '?') : (F.from ? ' · ' + F.from : ''));
+    if (hint) hint.textContent = T[F.type] + ' · ' + U.num(F.amount || 0) + '원 · ' + F.date.slice(5).replace('-', '/') + (F.tm ? ' ' + F.tm : '') + (F.category ? ' · ' + F.category : '') + (F.type === 'income' ? (F.to ? ' · ' + F.to : '') : F.type === 'transfer' ? ' · ' + (F.from || '?') + ' → ' + (F.to || '?') : (F.from ? ' · ' + F.from : ''));
   };
   UI.actions['f-smsopen'] = function () { var m = $('#f-more'); if (m) { m.open = true; var t = $('#f-sms'); if (t) setTimeout(function () { t.focus(); t.scrollIntoView({ block: 'center' }); }, 50); } };
   UI.inputs['f-usage'] = function (el) { F.usage = el.value; autoFillQuiet(); suggest(); };
@@ -159,6 +164,10 @@
   }
   function refreshKeepInputs() { var us = F.usage; refresh(); var el = $('#f-usage'); if (el && el.value !== us) el.value = us; }
   UI.changes['f-date'] = function (el) { F.date = el.value; };
+  UI.changes['f-time'] = function (el) { F.tm = el.value || ''; };
+  function nowTm() { var n = new Date(); return U.pad(n.getHours()) + ':' + U.pad(n.getMinutes()); }
+  UI.actions['f-tnow'] = function () { F.tm = nowTm(); $('#f-time').value = F.tm; };
+  UI.actions['f-tclear'] = function () { F.tm = ''; $('#f-time').value = ''; };
   UI.actions['f-day'] = function (el) { F.date = U.addDays(U.today(), +el.dataset.v); $('#f-date').value = F.date; };
   UI.actions['f-type'] = function (el) {
     F.type = el.dataset.v;
@@ -225,7 +234,7 @@
       id: F.id || U.uid(), date: F.date, type: t, repeat: F.repeat, category: t === 'transfer' ? '' : F.category, usage: F.usage,
       budget: budget, amount: t === 'budget' ? 0 : F.amount, from: (t === 'expense' || t === 'transfer') ? F.from : '', to: (t === 'income' || t === 'transfer') ? F.to : '',
       memo1: F.memo1, memo2: F.memo2, rev: F.orig ? F.orig.rev : 0,
-      tm: F.orig ? (F.orig.tm || '') : (function () { var n = new Date(); return F.date === U.today() ? U.pad(n.getHours()) + ':' + U.pad(n.getMinutes()) : ''; })()
+      tm: /^\d{2}:\d{2}$/.test(F.tm || '') ? F.tm : ''
     };
     var orig = F.orig, wasNew = F.isNew;
     var saved = await St.save(row);
