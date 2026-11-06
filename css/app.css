@@ -421,3 +421,4 @@ body { min-height: 100vh; min-height: 100lvh; }
 .mg .lb.s { margin-right: -3px !important; } .mg .lb.e { margin-left: -3px !important; } .mg .lb.m { margin: 1px -3px 0 !important; }
 .tev > b.zero { color: var(--ink3); font-weight: 600; font-size: .78rem; }
 .bgt { min-width: 0; overflow: hidden; } .gauge { max-width: 100%; }
+.tg.later .tev { opacity: .78; } .tg.later > .tm { color: var(--plan); }

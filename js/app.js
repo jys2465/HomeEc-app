@@ -2,7 +2,7 @@
 (function (root) {
   'use strict';
   var AB = root.AB, U = AB.util, St = AB.store, Sy = AB.sync, UI = AB.ui;
-  AB.VERSION = '4.0.2';
+  AB.VERSION = '4.0.3';
   var $ = function (s) { return document.querySelector(s); };
 
   function ls(k, v) {
@@ -90,7 +90,20 @@
     var ok = $('#lk-ok'); if (ok) ok.disabled = lk.buf.length < 4;
   }
 
-  L.show = function (mode) { lk.mode = mode; lk.buf = ''; lk.first = ''; draw(); };
+  L.show = function (mode) { lk.mode = mode; lk.buf = ''; lk.first = ''; draw(); if (mode === 'unlock') autoBio(); };
+  /* 잠금 화면이 뜨면 Face ID를 바로 시도 (아이폰이 허락하는 경우). 안 되면 조용히 단추·PIN으로 */
+  var bioBusy = false;
+  function autoBio() {
+    if (!L.bioOn() || bioBusy || ls('ab.bioAuto') === '0') return;
+    setTimeout(async function () {
+      if ($('#lock').hidden || lk.mode !== 'unlock' || bioBusy || document.visibilityState !== 'visible') return;
+      bioBusy = true;
+      try { if (await L.bioVerify()) { ls('ab.fail', '0'); unlocked(); } }
+      catch (e) { /* 자동 시도가 막히거나 취소되면 단추로 */ }
+      finally { bioBusy = false; }
+    }, 450);
+  }
+  document.addEventListener('visibilitychange', function () { if (document.visibilityState === 'visible' && !$('#lock').hidden && lk.mode === 'unlock') autoBio(); });
   L.lockNow = function () { if (!L.hasPin()) return; UI.closeSheet();
     document.querySelectorAll('.dlg-scrim').forEach(function (d) { d.remove(); }); var tt = document.getElementById('toast'); if (tt) tt.classList.remove('show'); /* 잠금 위 대화상자·토스트 제거 */
     L.show('unlock'); $('#app').setAttribute('aria-hidden', 'true'); };
@@ -136,8 +149,10 @@
       if (e.target.closest('#lk-bio')) {
         var m = $('#lk-msg');
         if (!L.bioOn()) { ls('ab.bioWant', '1'); if (m) m.textContent = 'PIN으로 한 번 열면 바로 Face ID를 켤 수 있어요'; return; }
+        if (bioBusy) return; bioBusy = true;
         try { if (await L.bioVerify()) { ls('ab.fail', '0'); unlocked(); return; } }
         catch (err) { if (m) m.textContent = 'Face ID: ' + L.bioErr(err) + ' · PIN을 입력하세요'; }
+        finally { bioBusy = false; }
         return;
       }
       if (e.target.id === 'lk-forgot') {
